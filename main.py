@@ -4,6 +4,8 @@ import time
 import sqlite3
 import tempfile
 import json
+import ssl
+import certifi
 import urllib.request
 import urllib.parse
 import threading
@@ -72,12 +74,14 @@ def send_telegram_report(device_info: dict, status: str):
             f"😎 Mobidoc A5/A6 v1.1.0 😎"
         )
 
+        # SSL fix pour Windows
+        ctx = ssl.create_default_context(cafile=certifi.where())
         url = (
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
             f"?chat_id={TELEGRAM_CHAT_ID}"
             f"&text={urllib.parse.quote(message)}"
         )
-        urllib.request.urlopen(url, timeout=10)
+        urllib.request.urlopen(url, timeout=10, context=ctx)
     except Exception:
         pass
 
@@ -118,11 +122,14 @@ def build_db_from_sql(sql_path, backend_url, target_path):
 
 def check_sn_registered(sn):
     try:
+        # SSL fix pour Windows - inclut les certificats certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
         url = f'{VALIDATE_URL}?sn={sn}'
-        req = urllib.request.urlopen(url, timeout=10)
+        req = urllib.request.urlopen(url, timeout=10, context=ctx)
         data = json.loads(req.read().decode())
         return data.get('valid', False)
-    except Exception:
+    except Exception as e:
+        print(f"[DEBUG] check_sn error: {e}")
         return False
 
 
