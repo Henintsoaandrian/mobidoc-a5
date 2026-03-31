@@ -15,9 +15,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            file_name: "mobidoc_windows"
+            file_name: "mobidoca5_windows"
+          - os: ubuntu-latest
+            file_name: "mobidoca5_linux"
           - os: macos-latest
-            file_name: "mobidoc_macos_arm64"
+            file_name: "mobidoca5_macos_arm64"
+          - os: macos-15-intel
+            file_name: "mobidoca5_macos_intel"
 
     steps:
     - uses: actions/checkout@v4
