@@ -543,7 +543,7 @@ class MainWindow(QMainWindow):
             lbl_sn = QLabel(f'Serial Number: <b>{self._current_sn}</b>')
             lbl_sn.setStyleSheet('font-size: 12px;')
 
-            lbl_msg = QLabel('⚠️ Please register your Serial Number at:')
+            lbl_msg = QLabel('Please register your Serial Number at:')
             lbl_msg.setStyleSheet('font-size: 12px;')
 
             lbl_link = QLabel('<a href="https://mobidocserver.com">mobidocserver.com</a>')
