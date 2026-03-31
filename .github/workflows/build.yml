@@ -18,6 +18,9 @@ jobs:
             file_name: "mobidoc_windows"
           - os: macos-latest
             file_name: "mobidoc_macos_arm64"
+          - os: macos-13
+            file_name: "mobidoc_macos_intel"
+            arch: "x86_64"
 
     steps:
     - uses: actions/checkout@v4
@@ -28,7 +31,7 @@ jobs:
         python-version: '3.11'
 
     - name: Install Dependencies
-      run: pip install PyQt5 pymobiledevice3==7.8.3 pyinstaller requests
+      run: pip install PyQt5 pymobiledevice3==7.8.3 pyinstaller requests certifi
 
     - name: Install DMG Creator
       if: runner.os == 'macOS'
@@ -45,6 +48,7 @@ jobs:
           --add-data "logo.png:." \
           --hidden-import "pymobiledevice3" \
           --hidden-import "requests" \
+          --hidden-import "certifi" \
           main.py
 
     - name: Build with PyInstaller (Windows)
@@ -56,6 +60,7 @@ jobs:
           --add-data "logo.png;." `
           --hidden-import "pymobiledevice3" `
           --hidden-import "requests" `
+          --hidden-import "certifi" `
           main.py
 
     - name: Package macOS DMG
@@ -84,4 +89,4 @@ jobs:
         path: |
           dist/*.dmg
           dist/*.exe
-          dist/${{ matrix.file_name }}  
+          dist/${{ matrix.file_name }}
