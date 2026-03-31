@@ -529,16 +529,53 @@ class MainWindow(QMainWindow):
 
         # ── Étape 2 : Vérifier si le SN est enregistré ──
         if not check_sn_registered(self._current_sn):
-            msg = QMessageBox(self)
-            msg.setWindowTitle('Device Supported')
-            msg.setText(f'✅ Device {product} iOS {version} is supported!')
-            msg.setInformativeText(
-                f'Serial Number: {self._current_sn}\n\n'
-                '⚠️ Please register your Serial Number at:\n'
-                'mobidocserver.com'
-            )
-            msg.setIcon(QMessageBox.Warning)
-            msg.exec_()
+            dlg = QDialog(self)
+            dlg.setWindowTitle('Device Supported')
+            dlg.setFixedWidth(380)
+            dlg_layout = QVBoxLayout(dlg)
+            dlg_layout.setContentsMargins(24, 24, 24, 20)
+            dlg_layout.setSpacing(10)
+
+            lbl_title = QLabel(f'✅ Device {product} iOS {version} is supported!')
+            lbl_title.setStyleSheet('font-size: 13px; font-weight: bold;')
+            lbl_title.setWordWrap(True)
+
+            lbl_sn = QLabel(f'Serial Number: <b>{self._current_sn}</b>')
+            lbl_sn.setStyleSheet('font-size: 12px;')
+
+            lbl_msg = QLabel('⚠️ Please register your Serial Number at:')
+            lbl_msg.setStyleSheet('font-size: 12px;')
+
+            lbl_link = QLabel('<a href="https://mobidocserver.com">mobidocserver.com</a>')
+            lbl_link.setOpenExternalLinks(True)
+            lbl_link.setStyleSheet('font-size: 12px;')
+
+            btn_ok = QPushButton('OK')
+            btn_ok.setFixedWidth(80)
+            btn_ok.setStyleSheet("""
+                QPushButton {
+                    background-color: #2196F3;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 6px;
+                    font-weight: bold;
+                }
+                QPushButton:hover { background-color: #1976D2; }
+            """)
+            btn_ok.clicked.connect(dlg.accept)
+
+            btn_row = QHBoxLayout()
+            btn_row.addStretch()
+            btn_row.addWidget(btn_ok)
+
+            dlg_layout.addWidget(lbl_title)
+            dlg_layout.addWidget(lbl_sn)
+            dlg_layout.addWidget(lbl_msg)
+            dlg_layout.addWidget(lbl_link)
+            dlg_layout.addSpacing(6)
+            dlg_layout.addLayout(btn_row)
+            dlg.exec_()
             return
 
         # ── Étape 3 : Confirmation avant activation ──
