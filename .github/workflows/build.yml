@@ -15,12 +15,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            file_name: "mobidoc_windows"
+            file_name: "hacktiv8_windows"
+          - os: ubuntu-latest
+            file_name: "hacktiv8_linux"
           - os: macos-latest
-            file_name: "mobidoc_macos_arm64"
-          - os: macos-13
-            file_name: "mobidoc_macos_intel"
-            arch: "x86_64"
+            file_name: "hacktiv8_macos_arm64"
+          - os: macos-15-intel
+            file_name: "hacktiv8_macos_intel"
 
     steps:
     - uses: actions/checkout@v4
