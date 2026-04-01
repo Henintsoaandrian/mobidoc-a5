@@ -511,6 +511,7 @@ class MainWindow(QMainWindow):
                 report_async(self._device_info, 'Device Connected 🔌')
 
             self.lbl_uuid.setText(f'APP_UUID: {app_uuid}')
+            self.lbl_device.setText(f'Connected Device: {product}  iOS {version}')
             self.lbl_udid.setText(f'ECID: {ecid}')
             self.lbl_imei_sn.setText(f'IMEI {imei}  SN: {sn} 📋')
             self.status.setVisible(False)
