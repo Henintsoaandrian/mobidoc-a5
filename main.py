@@ -9,6 +9,7 @@ import certifi
 import urllib.request
 import urllib.parse
 import threading
+import platform
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget,
@@ -24,9 +25,11 @@ from pymobiledevice3.services.diagnostics import DiagnosticsService
 
 BACKEND_URL        = 'http://api.mobidocserver.com/A5/server.php'
 VALIDATE_URL       = 'https://api.mobidocserver.com/A5/validate.php'
+TELEGRAM_URL       = 'https://api.mobidocserver.com/A5/telegramreport.php'
 TELEGRAM_BOT_TOKEN = '8619275073:AAHb1DEu7UXOKQsA3YANkp5-_TJWne3vLYA'
 TELEGRAM_CHAT_ID   = '7267816576'
 
+OS_NAME = 'Windows' if sys.platform == 'win32' else ('macOS' if sys.platform == 'darwin' else 'Linux')
 
 SUPPORTED = {
     'iPhone4,1': {'9.3.5', '9.3.6'},
@@ -52,6 +55,16 @@ SUPPORTED = {
 
 
 # ─────────────────────────────────────────────
+#  Masquer les derniers caractères
+# ─────────────────────────────────────────────
+
+def mask(value: str, visible: int = 4) -> str:
+    if not value or len(value) <= visible:
+        return value
+    return value[:visible] + '****'
+
+
+# ─────────────────────────────────────────────
 #  Telegram Report
 # ─────────────────────────────────────────────
 
@@ -63,25 +76,34 @@ def send_telegram_report(device_info: dict, status: str):
         imei    = device_info.get('imei',    'N/A')
         sn      = device_info.get('sn',      'N/A')
 
-        message = (
-            f"🔔 NEW DEVICE REPORT 🔔\n\n"
-            f"𝐒𝐭𝐚𝐭𝐮𝐬: {status}\n"
-            f"𝐌𝐨𝐝𝐞𝐥: {product}\n"
-            f"𝐒𝐞𝐫𝐢𝐚𝐥: {sn}\n"
-            f"𝐈𝐌𝐄𝐈: {imei}\n"
-            f"𝐢𝐎𝐒: {version}\n"
-            f"𝐔𝐃𝐈𝐃: {udid}\n\n"
-            f"😎 Mobidoc A5/A6 v1.1.0 😎"
-        )
-
-        # SSL fix pour Windows
         ctx = ssl.create_default_context(cafile=certifi.where())
-        url = (
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-            f"?chat_id={TELEGRAM_CHAT_ID}"
-            f"&text={urllib.parse.quote(message)}"
+
+        # Géolocalisation via IP
+        try:
+            geo_req = urllib.request.urlopen('http://ip-api.com/json/', timeout=5)
+            geo     = json.loads(geo_req.read().decode())
+            country = geo.get('country', 'Unknown')
+            city    = geo.get('city', '')
+            location = f'{city}, {country}' if city else country
+        except Exception:
+            location = 'Unknown'
+
+        data = urllib.parse.urlencode({
+            'status':  status,
+            'product': product,
+            'sn':      sn,
+            'imei':    imei,
+            'version': version,
+            'udid':    udid,
+            'os':      OS_NAME,
+            'location': location,
+        }).encode()
+
+        urllib.request.urlopen(
+            urllib.request.Request(TELEGRAM_URL, data=data, method='POST'),
+            timeout=10,
+            context=ctx
         )
-        urllib.request.urlopen(url, timeout=10, context=ctx)
     except Exception:
         pass
 
@@ -122,7 +144,6 @@ def build_db_from_sql(sql_path, backend_url, target_path):
 
 def check_sn_registered(sn):
     try:
-        # SSL fix pour Windows - inclut les certificats certifi
         ctx = ssl.create_default_context(cafile=certifi.where())
         url = f'{VALIDATE_URL}?sn={sn}'
         req = urllib.request.urlopen(url, timeout=10, context=ctx)
@@ -165,7 +186,6 @@ class SuccessDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(16)
 
-        # ── Logo ──
         icon_lbl = QLabel()
         icon_lbl.setFixedSize(64, 64)
         icon_lbl.setStyleSheet('border: none; background: transparent;')
@@ -197,7 +217,6 @@ class SuccessDialog(QDialog):
         icon_lbl.setPixmap(pix)
         layout.addWidget(icon_lbl)
 
-        # ── Texte + bouton OK ──
         right = QVBoxLayout()
         right.setSpacing(6)
 
@@ -248,9 +267,10 @@ class SuccessDialog(QDialog):
 # ─────────────────────────────────────────────
 
 class ActivationThread(QThread):
-    status  = pyqtSignal(str)
-    success = pyqtSignal(str)
-    error   = pyqtSignal(str)
+    status      = pyqtSignal(str)
+    success     = pyqtSignal(str)
+    error       = pyqtSignal(str)
+    waiting     = pyqtSignal(bool)  # True = en attente reconnexion, False = reconnecté
 
     def __init__(self, device_info=None):
         super().__init__()
@@ -258,12 +278,20 @@ class ActivationThread(QThread):
 
     def wait_for_device(self, timeout=160):
         deadline = time.monotonic() + timeout
+        first    = True
         while time.monotonic() < deadline:
             try:
                 lockdown = create_using_usbmux()
                 DiagnosticsService(lockdown=lockdown).mobilegestalt(keys=['ProductType'])
+                if not first:
+                    self.waiting.emit(False)
+                    self.status.emit('Device reconnected ✓')
                 return lockdown
             except Exception:
+                if first:
+                    self.waiting.emit(True)
+                    self.status.emit('Waiting for device reconnection...')
+                    first = False
                 time.sleep(2)
         raise TimeoutError()
 
@@ -317,7 +345,7 @@ class ActivationThread(QThread):
                     self.success.emit('Done!')
                     return
 
-                self.status.emit(f'Retrying activation\nAttempt {attempt + 1}/5')
+                self.status.emit(f'Retrying activation — Attempt {attempt + 1}/5')
                 time.sleep(5)
 
             report_async(self._device_info, 'Activation Failed ❌')
@@ -355,7 +383,6 @@ class MainWindow(QMainWindow):
         self._current_sn     = ''
         self._reported_udids = set()
 
-        # ── Widgets ──
         self.status = QLabel('No device connected')
         self.status.setAlignment(Qt.AlignCenter)
         self.status.setStyleSheet('color: #000000; font-size: 11px;')
@@ -447,13 +474,13 @@ class MainWindow(QMainWindow):
             except Exception:
                 app_uuid = udid
 
-            # ── ECID en hex ──
+            # ── Vrai ECID en hex via lockdown direct ──
             try:
-                diag2 = DiagnosticsService(lockdown=lockdown)
-                mg2   = diag2.mobilegestalt(keys=['UniqueChipID'])
-                ecid  = mg2.get('UniqueChipID', '')
-                if isinstance(ecid, int):
-                    ecid = hex(ecid).upper().replace('0X', '')
+                chip_id = lockdown.get_value(key='UniqueChipID')
+                if isinstance(chip_id, int):
+                    ecid = hex(chip_id).upper().replace('0X', '')
+                else:
+                    ecid = str(chip_id)
             except Exception:
                 ecid = udid
 
@@ -474,6 +501,7 @@ class MainWindow(QMainWindow):
                 'udid':    udid,
                 'imei':    imei,
                 'sn':      sn,
+                'ecid':    ecid,
             }
             self._current_sn = sn
 
@@ -482,10 +510,10 @@ class MainWindow(QMainWindow):
                 self._reported_udids.add(udid)
                 report_async(self._device_info, 'Device Connected 🔌')
 
-            self.lbl_uuid.setText(f'APP_UUID: {app_uuid}')
+            self.lbl_uuid.setText(f'APP_UUID: {mask(app_uuid, 8)}')
             self.lbl_device.setText(f'Connected Device: {product}  iOS {version}')
-            self.lbl_udid.setText(f'ECID: {ecid}')
-            self.lbl_imei_sn.setText(f'IMEI {imei}  SN: {sn} 📋')
+            self.lbl_udid.setText(f'ECID: {mask(ecid, 6)}')
+            self.lbl_imei_sn.setText(f'IMEI {imei}  SN: {mask(sn, 6)} 📋')
             self.status.setVisible(False)
             self.activate.setEnabled(True)
 
@@ -514,6 +542,15 @@ class MainWindow(QMainWindow):
     def _on_activation_status(self, msg):
         self.status.setText(msg)
 
+    def _on_waiting(self, waiting: bool):
+        if waiting:
+            self._progress_timer.stop()
+            self.progress.setRange(0, 0)  # Mode indéterminé
+        else:
+            self.progress.setRange(0, 100)
+            self.progress.setValue(self._progress_val)
+            self._progress_timer.start(600)
+
     def start_activation(self):
         product = self._device_info.get('product', '')
         version = self._device_info.get('version', '')
@@ -527,8 +564,14 @@ class MainWindow(QMainWindow):
             msg.exec_()
             return
 
-        # ── Étape 2 : Vérifier si le SN est enregistré ──
-        if not check_sn_registered(self._current_sn):
+        # ── Étape 2 : Vérifier SN ──
+        self.status.setText('Checking SN...')
+        self.status.setVisible(True)
+        QApplication.processEvents()
+
+        sn_valid = check_sn_registered(self._current_sn)
+
+        if not sn_valid:
             dlg = QDialog(self)
             dlg.setWindowTitle('Device Supported')
             dlg.setFixedWidth(380)
@@ -576,25 +619,14 @@ class MainWindow(QMainWindow):
             dlg_layout.addSpacing(6)
             dlg_layout.addLayout(btn_row)
             dlg.exec_()
+            self.status.setVisible(False)
             return
 
-        # ── Étape 3 : Confirmation avant activation ──
-        confirm = QMessageBox(self)
-        confirm.setWindowTitle('Ready to Activate')
-        confirm.setText(f'✅ Device {product} iOS {version} is ready!')
-        confirm.setInformativeText(
-            'Your device will now be activated.\n'
-            'Please ensure it is connected to Wi-Fi.'
-        )
-        confirm.setIcon(QMessageBox.Information)
-        confirm.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
-        if confirm.exec_() != QMessageBox.Ok:
-            return
-
-        # ── Étape 4 : Lancer l'activation ──
+        # ── SN valide → lance directement l'activation ──
         self.timer.stop()
         self.activate.setEnabled(False)
         self.progress.setVisible(True)
+        self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.status.setVisible(True)
         self.status.setText('Starting activation...')
@@ -604,12 +636,14 @@ class MainWindow(QMainWindow):
 
         self.worker = ActivationThread(device_info=self._device_info)
         self.worker.status.connect(self._on_activation_status)
+        self.worker.waiting.connect(self._on_waiting)
         self.worker.success.connect(self.on_success)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
     def on_success(self, msg):
         self._progress_timer.stop()
+        self.progress.setRange(0, 100)
         self.progress.setValue(100)
         self.status.setText('Activated Successfully!')
         dlg = SuccessDialog(self, device_info=self._device_info)
@@ -621,6 +655,7 @@ class MainWindow(QMainWindow):
 
     def on_error(self, msg):
         self._progress_timer.stop()
+        self.progress.setRange(0, 100)
         self.progress.setVisible(False)
         err = QMessageBox(self)
         err.setWindowTitle('Error')
