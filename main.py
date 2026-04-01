@@ -510,10 +510,9 @@ class MainWindow(QMainWindow):
                 self._reported_udids.add(udid)
                 report_async(self._device_info, 'Device Connected 🔌')
 
-            self.lbl_uuid.setText(f'APP_UUID: {mask(app_uuid, 8)}')
-            self.lbl_device.setText(f'Connected Device: {product}  iOS {version}')
-            self.lbl_udid.setText(f'ECID: {mask(ecid, 6)}')
-            self.lbl_imei_sn.setText(f'IMEI {imei}  SN: {mask(sn, 6)} 📋')
+            self.lbl_uuid.setText(f'APP_UUID: {app_uuid}')
+            self.lbl_udid.setText(f'ECID: {ecid}')
+            self.lbl_imei_sn.setText(f'IMEI {imei}  SN: {sn} 📋')
             self.status.setVisible(False)
             self.activate.setEnabled(True)
 
