@@ -2,9 +2,9 @@ name: iHPro Activator A5-A6 Bypass V1.0
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -16,16 +16,12 @@ jobs:
         include:
           - os: windows-latest
             file_name: "iHPro_Activator_Windows"
-            sep: ';'
           - os: ubuntu-latest
             file_name: "iHPro_Activator_Linux"
-            sep: ':'
           - os: macos-latest
             file_name: "iHPro_Activator_macOS_ARM"
-            sep: ':'
-          - os: macos-13
+          - os: macos-15-intel
             file_name: "iHPro_Activator_macOS_Intel"
-            sep: ':'
 
     steps:
     - uses: actions/checkout@v4
@@ -36,72 +32,62 @@ jobs:
         python-version: '3.11'
 
     - name: Install Dependencies
-      run: |
-        pip install PyQt5 pymobiledevice3 pyinstaller requests certifi pyusb
+      run: pip install PyQt5 pymobiledevice3==7.8.3 pyinstaller requests certifi
 
-    - name: Install DMG Creator (macOS)
+    - name: Install DMG Creator
       if: runner.os == 'macOS'
       run: brew install create-dmg
 
-    - name: Build macOS App (for DMG)
+    - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       env:
         MACOSX_DEPLOYMENT_TARGET: "10.13"
       run: |
-        # On ne met pas --onefile pour avoir un dossier .app
-        pyinstaller --noconfirm --windowed \
+        pyinstaller --noconfirm --onefile --windowed \
           --name "${{ matrix.file_name }}" \
           --icon "logo.icns" \
-          --add-data "payload.sql${{ matrix.sep }}." \
-          --add-data "logo.png${{ matrix.sep }}." \
-          --add-data "fond.png${{ matrix.sep }}." \
-          --collect-all pymobiledevice3 \
-          --hidden-import pymobiledevice3.services.afc \
-          --hidden-import pymobiledevice3.services.diagnostics \
-          --hidden-import pymobiledevice3.lockdown \
+          --add-data "payload.sql:." \
+          --add-data "logo.png:." \
+          --add-data "fond.png:." \
+          --hidden-import "pymobiledevice3" \
+          --hidden-import "requests" \
+          --hidden-import "certifi" \
           main.py
 
-    - name: Build Windows Executable
+    - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
       run: |
         pyinstaller --noconfirm --onefile --windowed `
           --name "${{ matrix.file_name }}" `
           --icon "logo.ico" `
-          --add-data "payload.sql${{ matrix.sep }}." `
-          --add-data "logo.png${{ matrix.sep }}." `
-          --add-data "fond.png${{ matrix.sep }}." `
-          --collect-all pymobiledevice3 `
-          --hidden-import pymobiledevice3.services.afc `
-          --hidden-import pymobiledevice3.services.diagnostics `
-          --hidden-import pymobiledevice3.lockdown `
+          --add-data "payload.sql;." `
+          --add-data "logo.png;." `
+          --add-data "fond.png;." `
+          --hidden-import "pymobiledevice3" `
+          --hidden-import "requests" `
+          --hidden-import "certifi" `
           main.py
 
-    - name: Build Linux Executable
+    - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'
       run: |
         pyinstaller --noconfirm --onefile --windowed \
           --name "${{ matrix.file_name }}" \
-          --add-data "payload.sql${{ matrix.sep }}." \
-          --add-data "logo.png${{ matrix.sep }}." \
-          --add-data "fond.png${{ matrix.sep }}." \
-          --collect-all pymobiledevice3 \
-          --hidden-import pymobiledevice3.services.afc \
-          --hidden-import pymobiledevice3.services.diagnostics \
-          --hidden-import pymobiledevice3.lockdown \
+          --add-data "payload.sql:." \
+          --add-data "logo.png:." \
+          --add-data "fond.png:." \
+          --hidden-import "pymobiledevice3" \
+          --hidden-import "requests" \
+          --hidden-import "certifi" \
           main.py
 
     - name: Package macOS DMG
       if: runner.os == 'macOS'
       run: |
         cd dist
-        # Vérifier que le .app existe
-        if [ ! -d "${{ matrix.file_name }}.app" ]; then
-          echo "Erreur : .app introuvable"
-          exit 1
-        fi
-        # Signature ad-hoc (nécessaire pour que l'app s'ouvre)
+        plutil -replace LSMinimumSystemVersion -string "10.13" \
+          "${{ matrix.file_name }}.app/Contents/Info.plist"
         codesign --force --deep --sign - "${{ matrix.file_name }}.app"
-        # Créer le DMG
         create-dmg \
           --volname "iHPro Activator" \
           --window-pos 200 120 \
