@@ -1,136 +1,95 @@
-name: Build iHPro Activator
+name: iHPro Activator A5-A6 Bypass V1.0
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}
+    name: Build ${{ matrix.file_name }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
-            python-version: '3.10'
-            executable: iHPro_Activator.exe
-            platform: windows
-          - os: macos-latest
-            python-version: '3.10'
-            executable: iHPro_Activator
-            platform: macos
+            file_name: "iHPro_Activator_Windows"       # ← changé
           - os: ubuntu-latest
-            python-version: '3.10'
-            executable: iHPro_Activator
-            platform: linux
+            file_name: "iHPro_Activator_Linux"          # ← changé
+          - os: macos-latest
+            file_name: "iHPro_Activator_macOS_ARM"      # ← changé
+          - os: macos-15-intel
+            file_name: "iHPro_Activator_macOS_Intel"    # ← changé
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      - name: Install dependencies (Linux)
-        if: matrix.platform == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libusb-1.0-0-dev libssl-dev
+    - name: Install Dependencies
+      run: pip install PyQt5 pymobiledevice3==7.8.3 pyinstaller requests certifi
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller
-          pip install pymobiledevice3
-          pip install PyQt5
-          pip install certifi
-          pip install urllib3
+    - name: Install DMG Creator
+      if: runner.os == 'macOS'
+      run: brew install create-dmg
 
-      - name: Prepare build resources
-        run: |
-          # Créer un dossier pour les ressources si nécessaire
-          mkdir -p build_resources
+    - name: Build with PyInstaller (macOS)
+      if: runner.os == 'macOS'
+      env:
+        MACOSX_DEPLOYMENT_TARGET: "10.13"
+      run: |
+        pyinstaller --noconfirm --onefile --windowed \
+          --name "${{ matrix.file_name }}" \
+          --icon "logo.icns" \
+          --add-data "payload.sql:." \
+          --add-data "logo.png:." \
+          --hidden-import "pymobiledevice3" \
+          --hidden-import "requests" \
+          --hidden-import "certifi" \
+          main.py
 
-      - name: Build with PyInstaller (Windows)
-        if: matrix.platform == 'windows'
-        run: |
-          pyinstaller --onefile --windowed --name iHPro_Activator `
-            --add-data "payload.sql;." `
-            --add-data "logo.png;." `
-            --add-data "fond.png;." `
-            --icon logo.ico `
-            --hidden-import pymobiledevice3 `
-            --hidden-import pymobiledevice3.services.afc `
-            --hidden-import pymobiledevice3.services.diagnostics `
-            main.py
+    - name: Build with PyInstaller (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        pyinstaller --noconfirm --onefile --windowed `
+          --name "${{ matrix.file_name }}" `
+          --icon "logo.ico" `
+          --add-data "payload.sql;." `
+          --add-data "logo.png;." `
+          --hidden-import "pymobiledevice3" `
+          --hidden-import "requests" `
+          --hidden-import "certifi" `
+          main.py
 
-      - name: Build with PyInstaller (macOS)
-        if: matrix.platform == 'macos'
-        run: |
-          pyinstaller --onefile --windowed --name iHPro_Activator `
-            --add-data "payload.sql:." `
-            --add-data "logo.png:." `
-            --add-data "fond.png:." `
-            --icon logo.icns `
-            --hidden-import pymobiledevice3 `
-            --hidden-import pymobiledevice3.services.afc `
-            --hidden-import pymobiledevice3.services.diagnostics `
-            main.py
+    - name: Package macOS DMG
+      if: runner.os == 'macOS'
+      run: |
+        cd dist
+        plutil -replace LSMinimumSystemVersion -string "10.13" \
+          "${{ matrix.file_name }}.app/Contents/Info.plist"
+        codesign --force --deep --sign - "${{ matrix.file_name }}.app"
+        create-dmg \
+          --volname "Mobidoc A5/A6" \
+          --window-pos 200 120 \
+          --window-size 600 300 \
+          --icon-size 100 \
+          --text-size 12 \
+          --hide-extension "${{ matrix.file_name }}.app" \
+          --app-drop-link 450 140 \
+          --icon "${{ matrix.file_name }}.app" 150 140 \
+          "${{ matrix.file_name }}.dmg" \
+          "${{ matrix.file_name }}.app"
 
-      - name: Build with PyInstaller (Linux)
-        if: matrix.platform == 'linux'
-        run: |
-          pyinstaller --onefile --windowed --name iHPro_Activator `
-            --add-data "payload.sql:." `
-            --add-data "logo.png:." `
-            --add-data "fond.png:." `
-            --hidden-import pymobiledevice3 `
-            --hidden-import pymobiledevice3.services.afc `
-            --hidden-import pymobiledevice3.services.diagnostics `
-            main.py
-
-      - name: List build output
-        run: |
-          ls -la dist/
-          ls -la build/
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: iHPro_Activator_${{ matrix.platform }}
-          path: |
-            dist/${{ matrix.executable }}
-            dist/iHPro_Activator  # pour macOS sans extension
-          if-no-files-found: error
-
-  release:
-    name: Create Release
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: List downloaded artifacts
-        run: |
-          ls -la artifacts/
-          find artifacts/ -type f -exec ls -la {} \;
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/**/*.exe
-            artifacts/**/iHPro_Activator
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.file_name }}
+        path: |
+          dist/*.dmg
+          dist/*.exe
+          dist/${{ matrix.file_name }}
