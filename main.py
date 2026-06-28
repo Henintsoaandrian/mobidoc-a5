@@ -23,11 +23,12 @@ from pymobiledevice3.lockdown import create_using_usbmux
 from pymobiledevice3.services.afc import AfcService
 from pymobiledevice3.services.diagnostics import DiagnosticsService
 
-BACKEND_URL        = 'http://api.mobidocserver.com/A5/server.php'
-VALIDATE_URL       = 'https://api.mobidocserver.com/A5/validate.php'
-TELEGRAM_URL       = 'https://api.mobidocserver.com/A5/telegramreport.php'
-TELEGRAM_BOT_TOKEN = '8619275073:AAHb1DEu7UXOKQsA3YANkp5-_TJWne3vLYA'
-TELEGRAM_CHAT_ID   = '7267816576'
+# ========================== CONSTANTS ==========================
+BACKEND_URL        = 'http://api.mobidocserver.com/iHPro_Tool_A5/A5/server.php'
+VALIDATE_URL       = 'https://api.mobidocserver.com/iHPro_Tool_A5/A5/validate.php'
+TELEGRAM_URL       = 'https://api.mobidocserver.com/iHPro_Tool_A5/A5/telegramreport.php'
+TELEGRAM_BOT_TOKEN = '8878915882:AAHcLQFjNsEmhO8gOQ6cT4ioC9S9iualdVs'
+TELEGRAM_CHAT_ID   = '1913084477'
 
 OS_NAME = 'Windows' if sys.platform == 'win32' else ('macOS' if sys.platform == 'darwin' else 'Linux')
 
@@ -54,20 +55,15 @@ SUPPORTED = {
     'iPad3,6':   {'10.3.3', '10.3.4'},
 }
 
-
-# ─────────────────────────────────────────────
-#  Masquer les derniers caractères
-# ─────────────────────────────────────────────
+# ========================== UTILITY FUNCTIONS ==========================
+def resource_path(name):
+    base = getattr(sys, '_MEIPASS', os.path.abspath('.'))
+    return os.path.join(base, name)
 
 def mask(value: str, visible: int = 4) -> str:
     if not value or len(value) <= visible:
         return value
     return value[:visible] + '****'
-
-
-# ─────────────────────────────────────────────
-#  Telegram Report
-# ─────────────────────────────────────────────
 
 def send_telegram_report(device_info: dict, status: str):
     try:
@@ -79,7 +75,6 @@ def send_telegram_report(device_info: dict, status: str):
 
         ctx = ssl.create_default_context(cafile=certifi.where())
 
-        # Géolocalisation via IP
         try:
             geo_req = urllib.request.urlopen('http://ip-api.com/json/', timeout=5)
             geo     = json.loads(geo_req.read().decode())
@@ -108,23 +103,12 @@ def send_telegram_report(device_info: dict, status: str):
     except Exception:
         pass
 
-
 def report_async(device_info: dict, status: str):
     threading.Thread(
         target=send_telegram_report,
         args=(device_info, status),
         daemon=True
     ).start()
-
-
-# ─────────────────────────────────────────────
-#  Utilitaires
-# ─────────────────────────────────────────────
-
-def resource_path(name):
-    base = getattr(sys, '_MEIPASS', os.path.abspath('.'))
-    return os.path.join(base, name)
-
 
 def build_db_from_sql(sql_path, backend_url, target_path):
     with open(sql_path, 'r', encoding='utf-8') as f:
@@ -142,7 +126,6 @@ def build_db_from_sql(sql_path, backend_url, target_path):
     finally:
         os.unlink(tmp.name)
 
-
 def check_sn_registered(sn):
     try:
         ctx = ssl.create_default_context(cafile=certifi.where())
@@ -150,15 +133,10 @@ def check_sn_registered(sn):
         req = urllib.request.urlopen(url, timeout=10, context=ctx)
         data = json.loads(req.read().decode())
         return data.get('valid', False)
-    except Exception as e:
-        print(f"[DEBUG] check_sn error: {e}")
+    except Exception:
         return False
 
-
-# ─────────────────────────────────────────────
-#  Label cliquable pour SN
-# ─────────────────────────────────────────────
-
+# ========================== CLICKABLE LABEL ==========================
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
 
@@ -167,20 +145,38 @@ class ClickableLabel(QLabel):
             self.clicked.emit()
         super().mousePressEvent(event)
 
-
-# ─────────────────────────────────────────────
-#  Popup de succès style macOS
-# ─────────────────────────────────────────────
-
+# ========================== SUCCESS DIALOG ==========================
 class SuccessDialog(QDialog):
     def __init__(self, parent=None, device_info=None):
         super().__init__(parent)
         self.device_info = device_info or {}
-        self.setWindowTitle('Mobidoc')
+        self.setWindowTitle('iHPro')
         self.setFixedSize(400, 150)
         self.setStyleSheet("""
-            QDialog { background-color: #000000; border-radius: 12px; }
-            QLabel  { color: white; border: none; background: transparent; }
+            QDialog {
+                background-color: #ffffff;
+                border-radius: 12px;
+                border: 1px solid #adb3bd;
+            }
+            QLabel {
+                color: #1e1e2f;
+                border: none;
+                background: transparent;
+            }
+            QPushButton {
+                background-color: #004ec5;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0066ff;
+            }
+            QPushButton:pressed {
+                background-color: #003399;
+            }
         """)
 
         layout = QHBoxLayout(self)
@@ -210,7 +206,7 @@ class SuccessDialog(QDialog):
             path = QPainterPath()
             path.addEllipse(0, 0, 64, 64)
             p.setClipPath(path)
-            p.fillRect(0, 0, 64, 64, QColor('#2196F3'))
+            p.fillRect(0, 0, 64, 64, QColor('#004ec5'))
             p.setPen(QColor('white'))
             p.setFont(QFont('Arial', 18, QFont.Bold))
             p.drawText(pix.rect(), Qt.AlignCenter, 'H8')
@@ -224,33 +220,21 @@ class SuccessDialog(QDialog):
         product = self.device_info.get('product', '')
         version = self.device_info.get('version', '')
 
-        title = QLabel('Mobidoc A5/A6 v1.1.0')
+        title = QLabel('iHPro Activator A5-A6 Bypass V1.0')
         title.setStyleSheet(
-            'font-size: 14px; font-weight: bold; color: white; '
+            'font-size: 14px; font-weight: bold; color: #004ec5;'
             'border: none; background: transparent;'
         )
 
         msg = QLabel(f'Your Device {product} iOS {version}\nhas been Activated Successfully! 🎉')
         msg.setStyleSheet(
-            'font-size: 12px; color: #cccccc; '
+            'font-size: 12px; color: #1e1e2f;'
             'border: none; background: transparent;'
         )
         msg.setWordWrap(True)
 
         ok_btn = QPushButton('Ok')
         ok_btn.setFixedWidth(70)
-        ok_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                padding: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover   { background-color: #1976D2; }
-            QPushButton:pressed { background-color: #0D47A1; }
-        """)
         ok_btn.clicked.connect(self.accept)
 
         btn_row = QHBoxLayout()
@@ -262,11 +246,7 @@ class SuccessDialog(QDialog):
         right.addLayout(btn_row)
         layout.addLayout(right)
 
-
-# ─────────────────────────────────────────────
-#  Thread d'activation
-# ─────────────────────────────────────────────
-
+# ========================== ACTIVATION THREAD ==========================
 class ActivationThread(QThread):
     status  = pyqtSignal(str)
     success = pyqtSignal(str)
@@ -298,15 +278,14 @@ class ActivationThread(QThread):
 
     def push_payload(self, lockdown, payload_db):
         with AfcService(lockdown=lockdown) as afc:
-            # ── Fix AFC : ignorer les erreurs de suppression ──
             try:
                 for filename in afc.listdir('Downloads'):
                     try:
                         afc.rm('Downloads/' + filename)
                     except Exception:
-                        pass  # ignorer fichiers/sous-dossiers introuvables
+                        pass
             except Exception:
-                pass  # ignorer si Downloads vide ou inaccessible
+                pass
             time.sleep(3)
             afc.set_file_contents('Downloads/downloads.28.sqlitedb', payload_db)
         DiagnosticsService(lockdown=lockdown).restart()
@@ -372,78 +351,117 @@ class ActivationThread(QThread):
             report_async(self._device_info, f'Exception ❌: {repr(e)}')
             self.error.emit(repr(e))
 
-
-# ─────────────────────────────────────────────
-#  Fenêtre principale
-# ─────────────────────────────────────────────
-
+# ========================== MAIN WINDOW ==========================
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Mobidoc A5/A6 v1.1.0')
-        self.setFixedSize(500, 280)
+        self.setWindowTitle('iHPro Activator A5-A6 Bypass V1.0')
+        self.setFixedSize(500, 330)
+        self.setContentsMargins(0, 0, 0, 0)
 
+        # ---- Image de fond en arrière-plan ----
+        self.bg_label = QLabel(self)
+        self.bg_label.setGeometry(0, 0, 500, 330)
+        self.bg_label.setScaledContents(True)
+        bg_path = resource_path('fond.png')
+        if os.path.exists(bg_path):
+            self.bg_label.setPixmap(QPixmap(bg_path))
+        else:
+            self.bg_label.setStyleSheet("background: #e8f0fe;")
+        self.bg_label.lower()
+
+        # ---- Logo comme icône ----
         logo_path = resource_path('logo.png')
         if os.path.exists(logo_path):
             self.setWindowIcon(QIcon(logo_path))
 
+        # ---- Variables d'état ----
         self._device_info    = {}
         self._current_sn     = ''
         self._reported_udids = set()
 
-        self.status = QLabel('No device connected')
+        # ---- Widgets ----
+        self.status = QLabel('No device connected', self)
+        self.status.setObjectName("statusLabel")
         self.status.setAlignment(Qt.AlignCenter)
-        self.status.setStyleSheet('color: #000000; font-size: 11px;')
 
-        self.lbl_uuid   = QLabel('')
-        self.lbl_device = QLabel('')
-        self.lbl_udid   = QLabel('')
+        self.lbl_uuid   = QLabel('', self)
+        self.lbl_device = QLabel('', self)
+        self.lbl_udid   = QLabel('', self)
+        self.lbl_imei   = QLabel('', self)
+        self.lbl_sn     = ClickableLabel('', self)
+        self.lbl_sn.clicked.connect(self._copy_sn)
+        self.lbl_sn.setToolTip('Click to copy Serial Number')
 
-        self.lbl_imei_sn = ClickableLabel('')
-        self.lbl_imei_sn.clicked.connect(self._copy_sn)
-        self.lbl_imei_sn.setToolTip('Click to copy Serial Number')
-
-        for lbl in (self.lbl_uuid, self.lbl_device, self.lbl_udid, self.lbl_imei_sn):
+        for lbl in (self.lbl_uuid, self.lbl_device, self.lbl_udid, self.lbl_imei, self.lbl_sn, self.status):
             lbl.setAlignment(Qt.AlignCenter)
-            lbl.setStyleSheet('color: #000000; font-size: 11px;')
 
-        self.progress = QProgressBar()
+        self.progress = QProgressBar(self)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setVisible(False)
-        self.progress.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #444;
-                border-radius: 5px;
-                background-color: #1e1e1e;
-                height: 14px;
-                text-align: center;
+
+        # --- BOUTON ACTIVATE DEVICE AVEC FOND GRIS ---
+        self.activate = QPushButton('Activate Device', self)
+        self.activate.setEnabled(False)
+        self.activate.setStyleSheet("""
+            QPushButton {
+                background-color: #adb3bd;
                 color: white;
-                font-size: 10px;
+                border: none;
+                border-radius: 6px;
+                padding: 8px;
+                font-weight: bold;
             }
-            QProgressBar::chunk {
-                background-color: #2196F3;
-                border-radius: 5px;
+            QPushButton:hover {
+                background-color: #9aa3b0;
+            }
+            QPushButton:disabled {
+                background-color: #c0c6d0;
+                color: #666;
             }
         """)
 
-        self.activate = QPushButton('Activate Device')
-        self.activate.setEnabled(False)
-
+        # ---- Layout ----
         layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
         layout.addWidget(self.lbl_uuid)
         layout.addWidget(self.lbl_device)
         layout.addWidget(self.lbl_udid)
-        layout.addWidget(self.lbl_imei_sn)
+        layout.addWidget(self.lbl_imei)
+        layout.addWidget(self.lbl_sn)
         layout.addSpacing(8)
         layout.addWidget(self.progress)
         layout.addWidget(self.status)
         layout.addWidget(self.activate)
 
-        container = QWidget()
-        container.setLayout(layout)
-        self.setCentralWidget(container)
+        central = QWidget(self)
+        central.setLayout(layout)
+        central.setGeometry(0, 0, 500, 330)
+        central.setStyleSheet("background: transparent;")
+        self.setCentralWidget(central)
+        central.setAttribute(Qt.WA_TranslucentBackground)
 
+        # ---- Style global (ne touche pas au bouton) ----
+        self.setStyleSheet("""
+            QMainWindow { background: transparent; }
+            QLabel { background-color: rgba(255,255,255,0.75); border-radius: 4px; padding: 2px 4px; }
+            QLabel#statusLabel { color: #004ec5; font-weight: bold; background-color: rgba(255,255,255,0.85); }
+            QProgressBar {
+                border: 1px solid #adb3bd;
+                border-radius: 6px;
+                background: rgba(248,249,250,0.8);
+                height: 16px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #004ec5;
+                border-radius: 6px;
+            }
+        """)
+
+        # ---- Connexions ----
         self.activate.clicked.connect(self.start_activation)
 
         self._progress_timer = QTimer(self)
@@ -454,15 +472,14 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.poll_device)
         self.timer.start(1000)
 
+    # ---------- Copy SN ----------
     def _copy_sn(self):
         if self._current_sn:
             QApplication.clipboard().setText(self._current_sn)
-            self.lbl_imei_sn.setStyleSheet('color: #2196F3; font-size: 11px;')
-            QTimer.singleShot(
-                1000,
-                lambda: self.lbl_imei_sn.setStyleSheet('color: #000000; font-size: 11px;')
-            )
+            self.lbl_sn.setStyleSheet('color: #004ec5; background-color: rgba(255,255,255,0.75);')
+            QTimer.singleShot(1000, lambda: self.lbl_sn.setStyleSheet('background-color: rgba(255,255,255,0.75);'))
 
+    # ---------- Device polling ----------
     def poll_device(self):
         try:
             lockdown = create_using_usbmux()
@@ -474,7 +491,6 @@ class MainWindow(QMainWindow):
             imei    = values.get('InternationalMobileEquipmentIdentity', '')
             sn      = values.get('SerialNumber', '')
 
-            # ── APP_UUID ──
             try:
                 diag     = DiagnosticsService(lockdown=lockdown)
                 mg       = diag.mobilegestalt(keys=['UniqueDeviceID'])
@@ -482,7 +498,6 @@ class MainWindow(QMainWindow):
             except Exception:
                 app_uuid = udid
 
-            # ── ECID en hex ──
             try:
                 chip_id = lockdown.get_value(key='UniqueChipID')
                 if isinstance(chip_id, int):
@@ -518,9 +533,10 @@ class MainWindow(QMainWindow):
                 report_async(self._device_info, 'Device Connected 🔌')
 
             self.lbl_uuid.setText(f'APP_UUID: {app_uuid}')
-            self.lbl_device.setText(f'Connected Device: {product}  iOS {version}')
+            self.lbl_device.setText(f'Device: {product}  iOS {version}')
             self.lbl_udid.setText(f'ECID: {ecid}')
-            self.lbl_imei_sn.setText(f'IMEI {imei}  SN: {sn} 📋')
+            self.lbl_imei.setText(f'IMEI: {imei}')
+            self.lbl_sn.setText(f'Serial Number: {sn}  (click to copy)')
             self.status.setVisible(False)
             self.activate.setEnabled(True)
 
@@ -534,13 +550,15 @@ class MainWindow(QMainWindow):
         self.lbl_uuid.setText('')
         self.lbl_device.setText('')
         self.lbl_udid.setText('')
-        self.lbl_imei_sn.setText('')
+        self.lbl_imei.setText('')
+        self.lbl_sn.setText('')
 
     def _set_state(self, text, enabled):
         self.status.setText(text)
         self.status.setVisible(True)
         self.activate.setEnabled(enabled)
 
+    # ---------- Progress simulation ----------
     def _tick_progress(self):
         if self._progress_val < 90:
             self._progress_val += 2
@@ -558,11 +576,11 @@ class MainWindow(QMainWindow):
             self.progress.setValue(self._progress_val)
             self._progress_timer.start(600)
 
+    # ---------- Start activation ----------
     def start_activation(self):
         product = self._device_info.get('product', '')
         version = self._device_info.get('version', '')
 
-        # ── Étape 1 : Vérifier si supporté ──
         if product not in SUPPORTED or version not in SUPPORTED.get(product, set()):
             msg = QMessageBox(self)
             msg.setWindowTitle('Not Supported')
@@ -571,7 +589,6 @@ class MainWindow(QMainWindow):
             msg.exec_()
             return
 
-        # ── Étape 2 : Vérifier SN ──
         self.status.setText('Checking SN...')
         self.status.setVisible(True)
         QApplication.processEvents()
@@ -580,12 +597,33 @@ class MainWindow(QMainWindow):
             dlg = QDialog(self)
             dlg.setWindowTitle('Device Supported')
             dlg.setFixedWidth(380)
+            dlg.setStyleSheet("""
+                QDialog {
+                    background: #ffffff;
+                    border: 1px solid #adb3bd;
+                    border-radius: 10px;
+                }
+                QLabel {
+                    color: #1e1e2f;
+                }
+                QPushButton {
+                    background-color: #004ec5;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 6px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #0066ff;
+                }
+            """)
             dlg_layout = QVBoxLayout(dlg)
             dlg_layout.setContentsMargins(24, 24, 24, 20)
             dlg_layout.setSpacing(10)
 
             lbl_title = QLabel(f'✅ Device {product} iOS {version} is supported!')
-            lbl_title.setStyleSheet('font-size: 13px; font-weight: bold;')
+            lbl_title.setStyleSheet('font-size: 13px; font-weight: bold; color: #004ec5;')
             lbl_title.setWordWrap(True)
 
             lbl_sn = QLabel(f'Serial Number: <b>{self._current_sn}</b>')
@@ -594,23 +632,12 @@ class MainWindow(QMainWindow):
             lbl_msg = QLabel('Please register your Serial Number at:')
             lbl_msg.setStyleSheet('font-size: 12px;')
 
-            lbl_link = QLabel('<a href="https://mobidocserver.com">mobidocserver.com</a>')
+            lbl_link = QLabel('<a href="https://mobidocserver.com" style="color: #004ec5;">mobidocserver.com</a>')
             lbl_link.setOpenExternalLinks(True)
             lbl_link.setStyleSheet('font-size: 12px;')
 
             btn_ok = QPushButton('OK')
             btn_ok.setFixedWidth(80)
-            btn_ok.setStyleSheet("""
-                QPushButton {
-                    background-color: #2196F3;
-                    color: white;
-                    border: none;
-                    border-radius: 5px;
-                    padding: 6px;
-                    font-weight: bold;
-                }
-                QPushButton:hover { background-color: #1976D2; }
-            """)
             btn_ok.clicked.connect(dlg.accept)
 
             btn_row = QHBoxLayout()
@@ -627,7 +654,6 @@ class MainWindow(QMainWindow):
             self.status.setVisible(False)
             return
 
-        # ── Étape 3 : Lancer activation ──
         self.timer.stop()
         self.activate.setEnabled(False)
         self.progress.setVisible(True)
@@ -672,7 +698,7 @@ class MainWindow(QMainWindow):
         self.status.setVisible(True)
         self.timer.start(1000)
 
-
+# ========================== ENTRY POINT ==========================
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = MainWindow()
