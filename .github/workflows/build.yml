@@ -20,7 +20,7 @@ jobs:
             file_name: "iHPro_Activator_Linux"
           - os: macos-latest
             file_name: "iHPro_Activator_macOS_ARM"
-          - os: macos-13                 # ← correction : macos-15-intel → macos-13
+          - os: macos-13
             file_name: "iHPro_Activator_macOS_Intel"
 
     steps:
@@ -31,11 +31,13 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Dependencies
+    - name: Install Common Dependencies
       run: |
         pip install PyQt5 pymobiledevice3==7.8.3 pyinstaller requests certifi
-        # Ajout de pywin32 pour Windows
-        if [ "${{ runner.os }}" == "Windows" ]; then pip install pywin32; fi
+
+    - name: Install Windows-specific Dependencies
+      if: runner.os == 'Windows'
+      run: pip install pywin32
 
     - name: Install DMG Creator
       if: runner.os == 'macOS'
