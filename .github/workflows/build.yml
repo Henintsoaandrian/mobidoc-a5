@@ -20,7 +20,7 @@ jobs:
             file_name: "iHPro_Activator_Linux"
           - os: macos-latest
             file_name: "iHPro_Activator_macOS_ARM"
-          - os: macos-13
+          - os: macos-15
             file_name: "iHPro_Activator_macOS_Intel"
 
     steps:
