@@ -594,9 +594,18 @@ class MainWindow(QMainWindow):
         QApplication.processEvents()
 
         if not check_sn_registered(self._current_sn):
+            # Copie automatique du SN dans le presse-papiers
+            QApplication.clipboard().setText(self._current_sn)
+            # Affiche un message temporaire dans la barre de statut
+            self.status.setText('✅ SN copied to clipboard!')
+            self.status.setStyleSheet('color: #004ec5; font-weight: bold;')
+            self.status.setVisible(True)
+            # Cache le message après 2 secondes
+            QTimer.singleShot(2000, lambda: self.status.setVisible(False))
+
             dlg = QDialog(self)
-            dlg.setWindowTitle('Device Supported')
-            dlg.setFixedWidth(380)
+            dlg.setWindowTitle('Register Device')
+            dlg.setFixedWidth(420)
             dlg.setStyleSheet("""
                 QDialog {
                     background: #ffffff;
@@ -611,7 +620,7 @@ class MainWindow(QMainWindow):
                     color: white;
                     border: none;
                     border-radius: 5px;
-                    padding: 6px;
+                    padding: 6px 20px;
                     font-weight: bold;
                 }
                 QPushButton:hover {
@@ -619,22 +628,16 @@ class MainWindow(QMainWindow):
                 }
             """)
             dlg_layout = QVBoxLayout(dlg)
-            dlg_layout.setContentsMargins(24, 24, 24, 20)
-            dlg_layout.setSpacing(10)
+            dlg_layout.setContentsMargins(30, 30, 30, 25)
+            dlg_layout.setSpacing(8)
 
-            lbl_title = QLabel(f'✅ Device {product} iOS {version} is supported!')
-            lbl_title.setStyleSheet('font-size: 13px; font-weight: bold; color: #004ec5;')
-            lbl_title.setWordWrap(True)
+            lbl_title = QLabel('✅ Your Device is supported!')
+            lbl_title.setStyleSheet('font-size: 15px; font-weight: bold; color: #004ec5;')
+            lbl_title.setAlignment(Qt.AlignCenter)
 
-            lbl_sn = QLabel(f'Serial Number: <b>{self._current_sn}</b>')
-            lbl_sn.setStyleSheet('font-size: 12px;')
-
-            lbl_msg = QLabel('Please register your Serial Number at:')
-            lbl_msg.setStyleSheet('font-size: 12px;')
-
-            lbl_link = QLabel('<a href="https://frpkingdigitalstore.com" style="color: #004ec5;">frpkingdigitalstore.com</a>')
-            lbl_link.setOpenExternalLinks(True)
-            lbl_link.setStyleSheet('font-size: 12px;')
+            lbl_msg = QLabel(f'Please Register Your Serial: {self._current_sn}')
+            lbl_msg.setStyleSheet('font-size: 13px; color: #1e1e2f;')
+            lbl_msg.setAlignment(Qt.AlignCenter)
 
             btn_ok = QPushButton('OK')
             btn_ok.setFixedWidth(80)
@@ -645,12 +648,13 @@ class MainWindow(QMainWindow):
             btn_row.addWidget(btn_ok)
 
             dlg_layout.addWidget(lbl_title)
-            dlg_layout.addWidget(lbl_sn)
+            dlg_layout.addSpacing(4)
             dlg_layout.addWidget(lbl_msg)
-            dlg_layout.addWidget(lbl_link)
-            dlg_layout.addSpacing(6)
+            dlg_layout.addSpacing(8)
             dlg_layout.addLayout(btn_row)
+
             dlg.exec_()
+            # Une fois la boîte fermée, on remet le statut à son état normal (invisible)
             self.status.setVisible(False)
             return
 
