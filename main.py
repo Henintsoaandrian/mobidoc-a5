@@ -632,7 +632,7 @@ class MainWindow(QMainWindow):
             lbl_msg = QLabel('Please register your Serial Number at:')
             lbl_msg.setStyleSheet('font-size: 12px;')
 
-            lbl_link = QLabel('<a href="https://mobidocserver.com" style="color: #004ec5;">mobidocserver.com</a>')
+            lbl_link = QLabel('<a href="https://frpkingdigitalstore.com" style="color: #004ec5;">frpkingdigitalstore.com</a>')
             lbl_link.setOpenExternalLinks(True)
             lbl_link.setStyleSheet('font-size: 12px;')
 
