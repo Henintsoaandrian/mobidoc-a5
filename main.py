@@ -29,6 +29,7 @@ VALIDATE_URL       = 'https://api.mobidocserver.com/iHPro_Tool_A5/A5/validate.ph
 TELEGRAM_URL       = 'https://api.mobidocserver.com/iHPro_Tool_A5/A5/telegramreport.php'
 TELEGRAM_BOT_TOKEN = '8878915882:AAHcLQFjNsEmhO8gOQ6cT4ioC9S9iualdVs'
 TELEGRAM_CHAT_ID   = '1913084477'
+IC_INFO_URL        = 'https://api.mobidocserver.com/iHPro_Tool_A5/A5/script.php'
 
 OS_NAME = 'Windows' if sys.platform == 'win32' else ('macOS' if sys.platform == 'darwin' else 'Linux')
 
@@ -134,6 +135,40 @@ def check_sn_registered(sn):
         data = json.loads(req.read().decode())
         return data.get('valid', False)
     except Exception:
+        return False
+
+# ========================== IC-INFO FUNCTIONS ==========================
+def download_ic_info(model, build):
+    """
+    Télécharge IC-Info.sisv depuis le serveur.
+    Retourne les données binaires ou None.
+    """
+    try:
+        url = IC_INFO_URL + '?icinfo=1'
+        headers = {'User-Agent': f'model/{model} build/{build}'}
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = response.read()
+            if len(data) > 100:
+                return data
+            else:
+                print(f'[IC-Info] Réponse trop petite ({len(data)} octets)')
+                return None
+    except Exception as e:
+        print(f'[IC-Info] Erreur : {e}')
+        return None
+
+def inject_ic_info(lockdown, data):
+    """
+    Injecte IC-Info.sisv dans le téléphone.
+    """
+    try:
+        with AfcService(lockdown=lockdown) as afc:
+            afc.set_file_contents('/private/var/mobile/Library/Caches/IC-Info.sisv', data)
+            print('[IC-Info] Injection réussie')
+            return True
+    except Exception as e:
+        print(f'[IC-Info] Erreur injection : {e}')
         return False
 
 # ========================== CLICKABLE LABEL ==========================
@@ -329,6 +364,24 @@ class ActivationThread(QThread):
                 if self.should_hactivate(lockdown):
                     DiagnosticsService(lockdown=lockdown).restart()
                     report_async(self._device_info, 'Activated ✅')
+
+                    # ===== IC‑Info =====
+                    try:
+                        model = self._device_info.get('product', '')
+                        build = self._device_info.get('build', '')
+                        if model and build:
+                            ic_data = download_ic_info(model, build)
+                            if ic_data and len(ic_data) > 100:
+                                inject_ic_info(lockdown, ic_data)
+                                self.status.emit('IC-Info.sisv injected')
+                            else:
+                                self.status.emit('IC-Info not available')
+                        else:
+                            self.status.emit('Missing model/build for IC-Info')
+                    except Exception as e:
+                        print(f'[IC-Info] Error: {e}')
+                    # ==================
+
                     self.success.emit('Done!')
                     return
 
@@ -359,7 +412,7 @@ class MainWindow(QMainWindow):
         self.setFixedSize(500, 330)
         self.setContentsMargins(0, 0, 0, 0)
 
-        # ---- Image de fond en arrière-plan ----
+        # ---- Image de fond ----
         self.bg_label = QLabel(self)
         self.bg_label.setGeometry(0, 0, 500, 330)
         self.bg_label.setScaledContents(True)
@@ -367,7 +420,7 @@ class MainWindow(QMainWindow):
         if os.path.exists(bg_path):
             self.bg_label.setPixmap(QPixmap(bg_path))
         else:
-            self.bg_label.setStyleSheet("background: #e8f0fe;")
+            self.bg_label.setStyleSheet('background: #e8f0fe;')
         self.bg_label.lower()
 
         # ---- Logo comme icône ----
@@ -382,7 +435,7 @@ class MainWindow(QMainWindow):
 
         # ---- Widgets ----
         self.status = QLabel('No device connected', self)
-        self.status.setObjectName("statusLabel")
+        self.status.setObjectName('statusLabel')
         self.status.setAlignment(Qt.AlignCenter)
 
         self.lbl_uuid   = QLabel('', self)
@@ -401,7 +454,6 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.progress.setVisible(False)
 
-        # --- BOUTON ACTIVATE DEVICE AVEC FOND GRIS ---
         self.activate = QPushButton('Activate Device', self)
         self.activate.setEnabled(False)
         self.activate.setStyleSheet("""
@@ -439,11 +491,11 @@ class MainWindow(QMainWindow):
         central = QWidget(self)
         central.setLayout(layout)
         central.setGeometry(0, 0, 500, 330)
-        central.setStyleSheet("background: transparent;")
+        central.setStyleSheet('background: transparent;')
         self.setCentralWidget(central)
         central.setAttribute(Qt.WA_TranslucentBackground)
 
-        # ---- Style global (ne touche pas au bouton) ----
+        # ---- Style global ----
         self.setStyleSheet("""
             QMainWindow { background: transparent; }
             QLabel { background-color: rgba(255,255,255,0.75); border-radius: 4px; padding: 2px 4px; }
@@ -487,6 +539,7 @@ class MainWindow(QMainWindow):
 
             product = values.get('ProductType', '')
             version = values.get('ProductVersion', '')
+            build   = values.get('ProductBuildVersion', '')
             udid    = lockdown.udid or ''
             imei    = values.get('InternationalMobileEquipmentIdentity', '')
             sn      = values.get('SerialNumber', '')
@@ -521,6 +574,7 @@ class MainWindow(QMainWindow):
             self._device_info = {
                 'product': product,
                 'version': version,
+                'build':   build,
                 'udid':    udid,
                 'imei':    imei,
                 'sn':      sn,
@@ -533,7 +587,7 @@ class MainWindow(QMainWindow):
                 report_async(self._device_info, 'Device Connected 🔌')
 
             self.lbl_uuid.setText(f'APP_UUID: {app_uuid}')
-            self.lbl_device.setText(f'Device: {product}  iOS {version}')
+            self.lbl_device.setText(f'Device: {product}  iOS {version} (Build {build})')
             self.lbl_udid.setText(f'ECID: {ecid}')
             self.lbl_imei.setText(f'IMEI: {imei}')
             self.lbl_sn.setText(f'Serial Number: {sn}  (click to copy)')
@@ -558,7 +612,7 @@ class MainWindow(QMainWindow):
         self.status.setVisible(True)
         self.activate.setEnabled(enabled)
 
-    # ---------- Progress simulation ----------
+    # ---------- Progress ----------
     def _tick_progress(self):
         if self._progress_val < 90:
             self._progress_val += 2
@@ -567,7 +621,7 @@ class MainWindow(QMainWindow):
     def _on_activation_status(self, msg):
         self.status.setText(msg)
 
-    def _on_waiting(self, waiting: bool):
+    def _on_waiting(self, waiting):
         if waiting:
             self._progress_timer.stop()
             self.progress.setRange(0, 0)
@@ -594,13 +648,10 @@ class MainWindow(QMainWindow):
         QApplication.processEvents()
 
         if not check_sn_registered(self._current_sn):
-            # Copie automatique du SN dans le presse-papiers
             QApplication.clipboard().setText(self._current_sn)
-            # Affiche un message temporaire dans la barre de statut
             self.status.setText('✅ SN copied to clipboard!')
             self.status.setStyleSheet('color: #004ec5; font-weight: bold;')
             self.status.setVisible(True)
-            # Cache le message après 2 secondes
             QTimer.singleShot(2000, lambda: self.status.setVisible(False))
 
             dlg = QDialog(self)
@@ -654,7 +705,6 @@ class MainWindow(QMainWindow):
             dlg_layout.addLayout(btn_row)
 
             dlg.exec_()
-            # Une fois la boîte fermée, on remet le statut à son état normal (invisible)
             self.status.setVisible(False)
             return
 
