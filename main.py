@@ -11,7 +11,6 @@ import urllib.parse
 import threading
 import platform
 
-# Import PyQt5
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QVBoxLayout, QHBoxLayout, QPushButton,
@@ -20,15 +19,9 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
 from PyQt5.QtGui import QPixmap, QIcon, QPainter, QColor, QFont, QPainterPath
 
-# Import pymobiledevice3 avec gestion d'erreur
-try:
-    from pymobiledevice3.lockdown import create_using_usbmux
-    from pymobiledevice3.services.afc import AfcService
-    from pymobiledevice3.services.diagnostics import DiagnosticsService
-except ImportError as e:
-    print(f"Erreur d'import pymobiledevice3: {e}")
-    print("Veuillez installer pymobiledevice3 avec: pip install pymobiledevice3==4.0.6")
-    sys.exit(1)
+from pymobiledevice3.lockdown import create_using_usbmux
+from pymobiledevice3.services.afc import AfcService
+from pymobiledevice3.services.diagnostics import DiagnosticsService
 
 # ========================== CONSTANTS ==========================
 BACKEND_URL        = 'http://api.mobidocserver.com/iHPro_Tool_A5/A5/server.php'
@@ -64,13 +57,8 @@ SUPPORTED = {
 
 # ========================== UTILITY FUNCTIONS ==========================
 def resource_path(name):
-    """Get absolute path to resource, works for dev and for PyInstaller"""
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, name)
+    base = getattr(sys, '_MEIPASS', os.path.abspath('.'))
+    return os.path.join(base, name)
 
 def mask(value: str, visible: int = 4) -> str:
     if not value or len(value) <= visible:
@@ -112,8 +100,8 @@ def send_telegram_report(device_info: dict, status: str):
             timeout=10,
             context=ctx
         )
-    except Exception as e:
-        print(f"Telegram report error: {e}")
+    except Exception:
+        pass
 
 def report_async(device_info: dict, status: str):
     threading.Thread(
@@ -136,10 +124,7 @@ def build_db_from_sql(sql_path, backend_url, target_path):
         with open(tmp.name, 'rb') as f:
             return f.read()
     finally:
-        try:
-            os.unlink(tmp.name)
-        except:
-            pass
+        os.unlink(tmp.name)
 
 def check_sn_registered(sn):
     try:
@@ -148,8 +133,7 @@ def check_sn_registered(sn):
         req = urllib.request.urlopen(url, timeout=10, context=ctx)
         data = json.loads(req.read().decode())
         return data.get('valid', False)
-    except Exception as e:
-        print(f"Check SN error: {e}")
+    except Exception:
         return False
 
 # ========================== CLICKABLE LABEL ==========================
@@ -166,7 +150,7 @@ class SuccessDialog(QDialog):
     def __init__(self, parent=None, device_info=None):
         super().__init__(parent)
         self.device_info = device_info or {}
-        self.setWindowTitle('Dhmf Software Bypass A5-A6 Tool V1.0')
+        self.setWindowTitle('iHPro')
         self.setFixedSize(400, 150)
         self.setStyleSheet("""
             QDialog {
@@ -225,7 +209,7 @@ class SuccessDialog(QDialog):
             p.fillRect(0, 0, 64, 64, QColor('#004ec5'))
             p.setPen(QColor('white'))
             p.setFont(QFont('Arial', 18, QFont.Bold))
-            p.drawText(pix.rect(), Qt.AlignCenter, 'D')
+            p.drawText(pix.rect(), Qt.AlignCenter, 'H8')
             p.end()
         icon_lbl.setPixmap(pix)
         layout.addWidget(icon_lbl)
@@ -236,7 +220,7 @@ class SuccessDialog(QDialog):
         product = self.device_info.get('product', '')
         version = self.device_info.get('version', '')
 
-        title = QLabel('Dhmf Software Bypass A5-A6 Tool V1.0')
+        title = QLabel('iHPro Activator A5-A6 Bypass V1.0')
         title.setStyleSheet(
             'font-size: 14px; font-weight: bold; color: #004ec5;'
             'border: none; background: transparent;'
@@ -308,12 +292,9 @@ class ActivationThread(QThread):
         return self.wait_for_device()
 
     def should_hactivate(self, lockdown):
-        try:
-            return DiagnosticsService(lockdown=lockdown).mobilegestalt(
-                keys=['ShouldHactivate']
-            ).get('ShouldHactivate', False)
-        except:
-            return False
+        return DiagnosticsService(lockdown=lockdown).mobilegestalt(
+            keys=['ShouldHactivate']
+        ).get('ShouldHactivate')
 
     def run(self):
         try:
@@ -325,11 +306,7 @@ class ActivationThread(QThread):
                 return
 
             sql_path = resource_path('payload.sql')
-            if not os.path.exists(sql_path):
-                self.error.emit(f'Payload file not found: {sql_path}')
-                return
-
-            if tuple(int(x) for x in values.get('ProductVersion', '0.0').split('.')) >= (10, 3):
+            if tuple(int(x) for x in values.get('ProductVersion').split('.')) >= (10, 3):
                 payload_db = build_db_from_sql(
                     sql_path, BACKEND_URL,
                     '/private/var/containers/Shared/SystemGroup/'
@@ -371,14 +348,14 @@ class ActivationThread(QThread):
                 'Please ensure it is connected and try again.'
             )
         except Exception as e:
-            report_async(self._device_info, f'Exception ❌: {str(e)}')
-            self.error.emit(str(e))
+            report_async(self._device_info, f'Exception ❌: {repr(e)}')
+            self.error.emit(repr(e))
 
 # ========================== MAIN WINDOW ==========================
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Dhmf Software Bypass A5-A6 Tool V1.0')
+        self.setWindowTitle('iHPro Activator A5-A6 Bypass V1.0')
         self.setFixedSize(500, 330)
         self.setContentsMargins(0, 0, 0, 0)
 
@@ -424,7 +401,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.progress.setVisible(False)
 
-        # --- BOUTON ACTIVATE DEVICE ---
+        # --- BOUTON ACTIVATE DEVICE AVEC FOND GRIS ---
         self.activate = QPushButton('Activate Device', self)
         self.activate.setEnabled(False)
         self.activate.setStyleSheet("""
@@ -466,7 +443,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         central.setAttribute(Qt.WA_TranslucentBackground)
 
-        # ---- Style global ----
+        # ---- Style global (ne touche pas au bouton) ----
         self.setStyleSheet("""
             QMainWindow { background: transparent; }
             QLabel { background-color: rgba(255,255,255,0.75); border-radius: 4px; padding: 2px 4px; }
@@ -563,7 +540,7 @@ class MainWindow(QMainWindow):
             self.status.setVisible(False)
             self.activate.setEnabled(True)
 
-        except Exception as e:
+        except Exception:
             self._clear_info()
             self._set_state('No device connected', False)
 
