@@ -51,9 +51,9 @@ jobs:
         pyinstaller --noconfirm --onefile --windowed \
           --name "${{ matrix.file_name }}" \
           --icon "logo.icns" \
-          --add-data "payload.sql:." \
-          --add-data "logo.png:." \
-          --add-data "fond.png:." \
+          --add-data "$(pwd)/payload.sql:." \
+          --add-data "$(pwd)/logo.png:." \
+          --add-data "$(pwd)/fond.png:." \
           --collect-all pymobiledevice3 \
           --hidden-import "pymobiledevice3" \
           --hidden-import "requests" \
@@ -66,9 +66,9 @@ jobs:
         pyinstaller --noconfirm --onefile --windowed `
           --name "${{ matrix.file_name }}" `
           --icon "logo.ico" `
-          --add-data "payload.sql;." `
-          --add-data "logo.png;." `
-          --add-data "fond.png;." `
+          --add-data "$(pwd)\payload.sql;." `
+          --add-data "$(pwd)\logo.png;." `
+          --add-data "$(pwd)\fond.png;." `
           --collect-all pymobiledevice3 `
           --hidden-import "pymobiledevice3" `
           --hidden-import "requests" `
@@ -83,9 +83,9 @@ jobs:
       run: |
         pyinstaller --noconfirm --onefile --windowed \
           --name "${{ matrix.file_name }}" \
-          --add-data "payload.sql:." \
-          --add-data "logo.png:." \
-          --add-data "fond.png:." \
+          --add-data "$(pwd)/payload.sql:." \
+          --add-data "$(pwd)/logo.png:." \
+          --add-data "$(pwd)/fond.png:." \
           --collect-all pymobiledevice3 \
           --hidden-import "pymobiledevice3" \
           --hidden-import "requests" \
