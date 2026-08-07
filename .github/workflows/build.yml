@@ -31,7 +31,7 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Dependencies with specific versions
+    - name: Install Dependencies
       run: |
         pip install PyQt5==5.15.9
         pip install pymobiledevice3==4.0.6
@@ -40,10 +40,45 @@ jobs:
         pip install pyinstaller==6.5.0
         pip install requests==2.31.0
         pip install certifi==2024.2.2
+        pip install pyinstaller-hooks-contrib
 
     - name: Install Windows-specific Dependencies
       if: runner.os == 'Windows'
       run: pip install pywin32==306
+
+    - name: Build with PyInstaller (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        pyinstaller --noconfirm --onefile --windowed `
+          --name "${{ matrix.file_name }}" `
+          --icon "logo.ico" `
+          --add-data "payload.sql;." `
+          --add-data "logo.png;." `
+          --add-data "fond.png;." `
+          --collect-all pymobiledevice3 `
+          --collect-all construct `
+          --collect-all construct_typed `
+          --collect-all requests `
+          --collect-all certifi `
+          --collect-all PyQt5 `
+          --hidden-import "pymobiledevice3" `
+          --hidden-import "pymobiledevice3.services" `
+          --hidden-import "pymobiledevice3.lockdown" `
+          --hidden-import "construct" `
+          --hidden-import "construct_typed" `
+          --hidden-import "requests" `
+          --hidden-import "certifi" `
+          --hidden-import "PyQt5" `
+          --hidden-import "PyQt5.QtCore" `
+          --hidden-import "PyQt5.QtWidgets" `
+          --hidden-import "PyQt5.QtGui" `
+          --hidden-import "win32security" `
+          --hidden-import "win32file" `
+          --hidden-import "win32api" `
+          --hidden-import "win32com" `
+          --hidden-import "win32com.client" `
+          --paths "$(python -c "import site; print(site.getsitepackages()[0])")" `
+          main.py
 
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
@@ -57,27 +92,23 @@ jobs:
           --add-data "logo.png:." \
           --add-data "fond.png:." \
           --collect-all pymobiledevice3 \
+          --collect-all construct \
+          --collect-all construct_typed \
+          --collect-all requests \
+          --collect-all certifi \
+          --collect-all PyQt5 \
           --hidden-import "pymobiledevice3" \
+          --hidden-import "pymobiledevice3.services" \
+          --hidden-import "pymobiledevice3.lockdown" \
+          --hidden-import "construct" \
+          --hidden-import "construct_typed" \
           --hidden-import "requests" \
           --hidden-import "certifi" \
-          main.py
-
-    - name: Build with PyInstaller (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        pyinstaller --noconfirm --onefile --windowed `
-          --name "${{ matrix.file_name }}" `
-          --icon "logo.ico" `
-          --add-data "payload.sql;." `
-          --add-data "logo.png;." `
-          --add-data "fond.png;." `
-          --collect-all pymobiledevice3 `
-          --hidden-import "pymobiledevice3" `
-          --hidden-import "requests" `
-          --hidden-import "certifi" `
-          --hidden-import "win32security" `
-          --hidden-import "win32file" `
-          --hidden-import "win32api" `
+          --hidden-import "PyQt5" \
+          --hidden-import "PyQt5.QtCore" \
+          --hidden-import "PyQt5.QtWidgets" \
+          --hidden-import "PyQt5.QtGui" \
+          --paths "$(python -c "import site; print(site.getsitepackages()[0])")" \
           main.py
 
     - name: Build with PyInstaller (Linux)
@@ -89,9 +120,23 @@ jobs:
           --add-data "logo.png:." \
           --add-data "fond.png:." \
           --collect-all pymobiledevice3 \
+          --collect-all construct \
+          --collect-all construct_typed \
+          --collect-all requests \
+          --collect-all certifi \
+          --collect-all PyQt5 \
           --hidden-import "pymobiledevice3" \
+          --hidden-import "pymobiledevice3.services" \
+          --hidden-import "pymobiledevice3.lockdown" \
+          --hidden-import "construct" \
+          --hidden-import "construct_typed" \
           --hidden-import "requests" \
           --hidden-import "certifi" \
+          --hidden-import "PyQt5" \
+          --hidden-import "PyQt5.QtCore" \
+          --hidden-import "PyQt5.QtWidgets" \
+          --hidden-import "PyQt5.QtGui" \
+          --paths "$(python -c "import site; print(site.getsitepackages()[0])")" \
           main.py
 
     - name: Upload Artifacts
