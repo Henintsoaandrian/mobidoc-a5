@@ -31,17 +31,19 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Common Dependencies
+    - name: Install Dependencies with specific versions
       run: |
-        pip install PyQt5 pymobiledevice3==7.8.3 pyinstaller requests certifi
+        pip install PyQt5==5.15.9
+        pip install pymobiledevice3==4.0.6
+        pip install construct==2.10.68
+        pip install construct-typed==0.6.1
+        pip install pyinstaller==6.5.0
+        pip install requests==2.31.0
+        pip install certifi==2024.2.2
 
     - name: Install Windows-specific Dependencies
       if: runner.os == 'Windows'
-      run: pip install pywin32
-
-    - name: Install DMG Creator
-      if: runner.os == 'macOS'
-      run: brew install create-dmg
+      run: pip install pywin32==306
 
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
@@ -92,30 +94,11 @@ jobs:
           --hidden-import "certifi" \
           main.py
 
-    - name: Package macOS DMG
-      if: runner.os == 'macOS'
-      run: |
-        cd dist
-        plutil -replace LSMinimumSystemVersion -string "10.13" \
-          "${{ matrix.file_name }}.app/Contents/Info.plist"
-        codesign --force --deep --sign - "${{ matrix.file_name }}.app"
-        create-dmg \
-          --volname "Dhmf Software Bypass A5-A6 Tool V1.0" \
-          --window-pos 200 120 \
-          --window-size 600 300 \
-          --icon-size 100 \
-          --text-size 12 \
-          --hide-extension "${{ matrix.file_name }}.app" \
-          --app-drop-link 450 140 \
-          --icon "${{ matrix.file_name }}.app" 150 140 \
-          "${{ matrix.file_name }}.dmg" \
-          "${{ matrix.file_name }}.app"
-
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.file_name }}
         path: |
-          dist/*.dmg
+          dist/*.app
           dist/*.exe
           dist/${{ matrix.file_name }}
