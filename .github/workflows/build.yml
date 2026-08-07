@@ -24,29 +24,17 @@ jobs:
             file_name: "Dhmf_Software_Bypass_macOS_Intel"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
 
     - name: Install Dependencies
-      run: |
-        pip install PyQt5==5.15.9
-        pip install pymobiledevice3==4.0.6
-        pip install construct==2.10.68
-        pip install construct-typed==0.6.1
-        pip install pyinstaller==6.5.0
-        pip install requests==2.31.0
-        pip install certifi==2024.2.2
-        pip install pyinstaller-hooks-contrib
+      run: pip install -r requirements.txt
 
-    - name: Install Windows-specific Dependencies
-      if: runner.os == 'Windows'
-      run: pip install pywin32==306
-
-    - name: Install DMG Creator
+    - name: Install DMG Creator (macOS only)
       if: runner.os == 'macOS'
       run: brew install create-dmg
 
@@ -59,28 +47,9 @@ jobs:
           --add-data "payload.sql;." `
           --add-data "logo.png;." `
           --add-data "fond.png;." `
-          --collect-all pymobiledevice3 `
-          --collect-all construct `
-          --collect-all construct_typed `
-          --collect-all requests `
-          --collect-all certifi `
-          --collect-all PyQt5 `
           --hidden-import "pymobiledevice3" `
-          --hidden-import "pymobiledevice3.services" `
-          --hidden-import "pymobiledevice3.lockdown" `
-          --hidden-import "construct" `
-          --hidden-import "construct_typed" `
-          --hidden-import "requests" `
           --hidden-import "certifi" `
-          --hidden-import "PyQt5" `
-          --hidden-import "PyQt5.QtCore" `
-          --hidden-import "PyQt5.QtWidgets" `
-          --hidden-import "PyQt5.QtGui" `
-          --hidden-import "win32security" `
-          --hidden-import "win32file" `
-          --hidden-import "win32api" `
-          --hidden-import "win32com" `
-          --hidden-import "win32com.client" `
+          --hidden-import "requests" `
           main.py
 
     - name: Build with PyInstaller (Linux)
@@ -91,23 +60,9 @@ jobs:
           --add-data "payload.sql:." \
           --add-data "logo.png:." \
           --add-data "fond.png:." \
-          --collect-all pymobiledevice3 \
-          --collect-all construct \
-          --collect-all construct_typed \
-          --collect-all requests \
-          --collect-all certifi \
-          --collect-all PyQt5 \
           --hidden-import "pymobiledevice3" \
-          --hidden-import "pymobiledevice3.services" \
-          --hidden-import "pymobiledevice3.lockdown" \
-          --hidden-import "construct" \
-          --hidden-import "construct_typed" \
-          --hidden-import "requests" \
           --hidden-import "certifi" \
-          --hidden-import "PyQt5" \
-          --hidden-import "PyQt5.QtCore" \
-          --hidden-import "PyQt5.QtWidgets" \
-          --hidden-import "PyQt5.QtGui" \
+          --hidden-import "requests" \
           main.py
 
     - name: Build with PyInstaller (macOS)
@@ -115,60 +70,38 @@ jobs:
       env:
         MACOSX_DEPLOYMENT_TARGET: "10.13"
       run: |
-        pyinstaller --noconfirm --onedir \
+        pyinstaller --noconfirm --onefile --windowed \
           --name "${{ matrix.file_name }}" \
           --icon "logo.icns" \
           --add-data "payload.sql:." \
           --add-data "logo.png:." \
           --add-data "fond.png:." \
-          --collect-all pymobiledevice3 \
-          --collect-all construct \
-          --collect-all construct_typed \
-          --collect-all requests \
-          --collect-all certifi \
-          --collect-all PyQt5 \
           --hidden-import "pymobiledevice3" \
-          --hidden-import "pymobiledevice3.services" \
-          --hidden-import "pymobiledevice3.lockdown" \
-          --hidden-import "construct" \
-          --hidden-import "construct_typed" \
-          --hidden-import "requests" \
           --hidden-import "certifi" \
-          --hidden-import "PyQt5" \
-          --hidden-import "PyQt5.QtCore" \
-          --hidden-import "PyQt5.QtWidgets" \
-          --hidden-import "PyQt5.QtGui" \
+          --hidden-import "requests" \
           main.py
 
     - name: Package macOS DMG
       if: runner.os == 'macOS'
       run: |
         cd dist
-        
-        if [ -d "${{ matrix.file_name }}.app" ]; then
-          echo "✅ Application found, creating DMG..."
-          
-          create-dmg \
-            --volname "Dhmf Software Bypass A5-A6 Tool V1.0" \
-            --window-pos 200 120 \
-            --window-size 600 300 \
-            --icon-size 100 \
-            --text-size 12 \
-            --hide-extension "${{ matrix.file_name }}.app" \
-            --app-drop-link 450 140 \
-            --icon "${{ matrix.file_name }}.app" 150 140 \
-            "${{ matrix.file_name }}.dmg" \
-            "${{ matrix.file_name }}.app"
-          
-          echo "✅ DMG created successfully!"
-        else
-          echo "❌ ERROR: Application not found!"
-          ls -la
-          exit 1
-        fi
+        plutil -replace LSMinimumSystemVersion -string "10.13" \
+          "${{ matrix.file_name }}.app/Contents/Info.plist"
+        codesign --force --deep --sign - "${{ matrix.file_name }}.app"
+        create-dmg \
+          --volname "Dhmf Software Bypass A5-A6 Tool V1.0" \
+          --window-pos 200 120 \
+          --window-size 600 300 \
+          --icon-size 100 \
+          --text-size 12 \
+          --hide-extension "${{ matrix.file_name }}.app" \
+          --app-drop-link 450 140 \
+          --icon "${{ matrix.file_name }}.app" 150 140 \
+          "${{ matrix.file_name }}.dmg" \
+          "${{ matrix.file_name }}.app"
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ matrix.file_name }}
         path: |
