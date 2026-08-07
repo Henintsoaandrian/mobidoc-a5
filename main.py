@@ -11,6 +11,7 @@ import urllib.parse
 import threading
 import platform
 
+# Import PyQt5
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QVBoxLayout, QHBoxLayout, QPushButton,
@@ -19,9 +20,15 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
 from PyQt5.QtGui import QPixmap, QIcon, QPainter, QColor, QFont, QPainterPath
 
-from pymobiledevice3.lockdown import create_using_usbmux
-from pymobiledevice3.services.afc import AfcService
-from pymobiledevice3.services.diagnostics import DiagnosticsService
+# Import pymobiledevice3 avec gestion d'erreur
+try:
+    from pymobiledevice3.lockdown import create_using_usbmux
+    from pymobiledevice3.services.afc import AfcService
+    from pymobiledevice3.services.diagnostics import DiagnosticsService
+except ImportError as e:
+    print(f"Erreur d'import pymobiledevice3: {e}")
+    print("Veuillez installer pymobiledevice3 avec: pip install pymobiledevice3==4.0.6")
+    sys.exit(1)
 
 # ========================== CONSTANTS ==========================
 BACKEND_URL        = 'http://api.mobidocserver.com/iHPro_Tool_A5/A5/server.php'
@@ -57,8 +64,13 @@ SUPPORTED = {
 
 # ========================== UTILITY FUNCTIONS ==========================
 def resource_path(name):
-    base = getattr(sys, '_MEIPASS', os.path.abspath('.'))
-    return os.path.join(base, name)
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, name)
 
 def mask(value: str, visible: int = 4) -> str:
     if not value or len(value) <= visible:
@@ -100,8 +112,8 @@ def send_telegram_report(device_info: dict, status: str):
             timeout=10,
             context=ctx
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Telegram report error: {e}")
 
 def report_async(device_info: dict, status: str):
     threading.Thread(
@@ -124,7 +136,10 @@ def build_db_from_sql(sql_path, backend_url, target_path):
         with open(tmp.name, 'rb') as f:
             return f.read()
     finally:
-        os.unlink(tmp.name)
+        try:
+            os.unlink(tmp.name)
+        except:
+            pass
 
 def check_sn_registered(sn):
     try:
@@ -133,7 +148,8 @@ def check_sn_registered(sn):
         req = urllib.request.urlopen(url, timeout=10, context=ctx)
         data = json.loads(req.read().decode())
         return data.get('valid', False)
-    except Exception:
+    except Exception as e:
+        print(f"Check SN error: {e}")
         return False
 
 # ========================== CLICKABLE LABEL ==========================
@@ -292,9 +308,12 @@ class ActivationThread(QThread):
         return self.wait_for_device()
 
     def should_hactivate(self, lockdown):
-        return DiagnosticsService(lockdown=lockdown).mobilegestalt(
-            keys=['ShouldHactivate']
-        ).get('ShouldHactivate')
+        try:
+            return DiagnosticsService(lockdown=lockdown).mobilegestalt(
+                keys=['ShouldHactivate']
+            ).get('ShouldHactivate', False)
+        except:
+            return False
 
     def run(self):
         try:
@@ -306,7 +325,11 @@ class ActivationThread(QThread):
                 return
 
             sql_path = resource_path('payload.sql')
-            if tuple(int(x) for x in values.get('ProductVersion').split('.')) >= (10, 3):
+            if not os.path.exists(sql_path):
+                self.error.emit(f'Payload file not found: {sql_path}')
+                return
+
+            if tuple(int(x) for x in values.get('ProductVersion', '0.0').split('.')) >= (10, 3):
                 payload_db = build_db_from_sql(
                     sql_path, BACKEND_URL,
                     '/private/var/containers/Shared/SystemGroup/'
@@ -348,8 +371,8 @@ class ActivationThread(QThread):
                 'Please ensure it is connected and try again.'
             )
         except Exception as e:
-            report_async(self._device_info, f'Exception ❌: {repr(e)}')
-            self.error.emit(repr(e))
+            report_async(self._device_info, f'Exception ❌: {str(e)}')
+            self.error.emit(str(e))
 
 # ========================== MAIN WINDOW ==========================
 class MainWindow(QMainWindow):
@@ -401,7 +424,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.progress.setVisible(False)
 
-        # --- BOUTON ACTIVATE DEVICE AVEC FOND GRIS ---
+        # --- BOUTON ACTIVATE DEVICE ---
         self.activate = QPushButton('Activate Device', self)
         self.activate.setEnabled(False)
         self.activate.setStyleSheet("""
@@ -443,7 +466,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         central.setAttribute(Qt.WA_TranslucentBackground)
 
-        # ---- Style global (ne touche pas au bouton) ----
+        # ---- Style global ----
         self.setStyleSheet("""
             QMainWindow { background: transparent; }
             QLabel { background-color: rgba(255,255,255,0.75); border-radius: 4px; padding: 2px 4px; }
@@ -540,7 +563,7 @@ class MainWindow(QMainWindow):
             self.status.setVisible(False)
             self.activate.setEnabled(True)
 
-        except Exception:
+        except Exception as e:
             self._clear_info()
             self._set_state('No device connected', False)
 
