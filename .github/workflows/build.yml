@@ -46,6 +46,10 @@ jobs:
       if: runner.os == 'Windows'
       run: pip install pywin32==306
 
+    - name: Install DMG Creator
+      if: runner.os == 'macOS'
+      run: brew install create-dmg
+
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
       run: |
@@ -77,7 +81,33 @@ jobs:
           --hidden-import "win32api" `
           --hidden-import "win32com" `
           --hidden-import "win32com.client" `
-          --paths "$(python -c "import site; print(site.getsitepackages()[0])")" `
+          main.py
+
+    - name: Build with PyInstaller (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        pyinstaller --noconfirm --onefile --windowed \
+          --name "${{ matrix.file_name }}" \
+          --add-data "payload.sql:." \
+          --add-data "logo.png:." \
+          --add-data "fond.png:." \
+          --collect-all pymobiledevice3 \
+          --collect-all construct \
+          --collect-all construct_typed \
+          --collect-all requests \
+          --collect-all certifi \
+          --collect-all PyQt5 \
+          --hidden-import "pymobiledevice3" \
+          --hidden-import "pymobiledevice3.services" \
+          --hidden-import "pymobiledevice3.lockdown" \
+          --hidden-import "construct" \
+          --hidden-import "construct_typed" \
+          --hidden-import "requests" \
+          --hidden-import "certifi" \
+          --hidden-import "PyQt5" \
+          --hidden-import "PyQt5.QtCore" \
+          --hidden-import "PyQt5.QtWidgets" \
+          --hidden-import "PyQt5.QtGui" \
           main.py
 
     - name: Build with PyInstaller (macOS)
@@ -108,42 +138,40 @@ jobs:
           --hidden-import "PyQt5.QtCore" \
           --hidden-import "PyQt5.QtWidgets" \
           --hidden-import "PyQt5.QtGui" \
-          --paths "$(python -c "import site; print(site.getsitepackages()[0])")" \
           main.py
 
-    - name: Build with PyInstaller (Linux)
-      if: runner.os == 'Linux'
+    - name: Package macOS DMG
+      if: runner.os == 'macOS'
       run: |
-        pyinstaller --noconfirm --onefile --windowed \
-          --name "${{ matrix.file_name }}" \
-          --add-data "payload.sql:." \
-          --add-data "logo.png:." \
-          --add-data "fond.png:." \
-          --collect-all pymobiledevice3 \
-          --collect-all construct \
-          --collect-all construct_typed \
-          --collect-all requests \
-          --collect-all certifi \
-          --collect-all PyQt5 \
-          --hidden-import "pymobiledevice3" \
-          --hidden-import "pymobiledevice3.services" \
-          --hidden-import "pymobiledevice3.lockdown" \
-          --hidden-import "construct" \
-          --hidden-import "construct_typed" \
-          --hidden-import "requests" \
-          --hidden-import "certifi" \
-          --hidden-import "PyQt5" \
-          --hidden-import "PyQt5.QtCore" \
-          --hidden-import "PyQt5.QtWidgets" \
-          --hidden-import "PyQt5.QtGui" \
-          --paths "$(python -c "import site; print(site.getsitepackages()[0])")" \
-          main.py
+        cd dist
+        
+        if [ -d "${{ matrix.file_name }}.app" ]; then
+          echo "✅ Application found, creating DMG..."
+          
+          create-dmg \
+            --volname "Dhmf Software Bypass A5-A6 Tool V1.0" \
+            --window-pos 200 120 \
+            --window-size 600 300 \
+            --icon-size 100 \
+            --text-size 12 \
+            --hide-extension "${{ matrix.file_name }}.app" \
+            --app-drop-link 450 140 \
+            --icon "${{ matrix.file_name }}.app" 150 140 \
+            "${{ matrix.file_name }}.dmg" \
+            "${{ matrix.file_name }}.app"
+          
+          echo "✅ DMG created successfully!"
+        else
+          echo "❌ ERROR: Application not found!"
+          ls -la
+          exit 1
+        fi
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.file_name }}
         path: |
-          dist/*.app
+          dist/*.dmg
           dist/*.exe
           dist/${{ matrix.file_name }}
