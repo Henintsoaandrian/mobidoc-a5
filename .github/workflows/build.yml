@@ -48,17 +48,79 @@ jobs:
       env:
         MACOSX_DEPLOYMENT_TARGET: "10.13"
       run: |
-        pyinstaller --noconfirm --onedir \
-          --name "${{ matrix.file_name }}" \
-          --icon "logo.icns" \
-          --add-data "payload.sql:." \
-          --add-data "logo.png:." \
-          --add-data "fond.png:." \
-          --collect-all pymobiledevice3 \
-          --hidden-import "pymobiledevice3" \
-          --hidden-import "requests" \
-          --hidden-import "certifi" \
-          main.py
+        # Créer un fichier spec personnalisé
+        cat > build.spec << EOF
+        # -*- mode: python ; coding: utf-8 -*-
+        from PyInstaller.utils.hooks import collect_all
+
+        datas = [
+            ('payload.sql', '.'),
+            ('logo.png', '.'),
+            ('fond.png', '.'),
+        ]
+        
+        binaries = []
+        hiddenimports = ['pymobiledevice3', 'requests', 'certifi']
+        
+        a = Analysis(
+            ['main.py'],
+            pathex=[],
+            binaries=binaries,
+            datas=datas,
+            hiddenimports=hiddenimports,
+            hookspath=[],
+            hooksconfig={},
+            runtime_hooks=[],
+            excludes=[],
+            noarchive=False,
+        )
+        
+        pyz = PYZ(a.pure)
+        
+        exe = EXE(
+            pyz,
+            a.scripts,
+            a.binaries,
+            a.datas,
+            [],
+            name='${{ matrix.file_name }}',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            runtime_tmpdir=None,
+            console=False,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+            icon='logo.icns',
+        )
+        
+        coll = COLLECT(
+            exe,
+            a.binaries,
+            a.datas,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            name='${{ matrix.file_name }}',
+        )
+        
+        app = BUNDLE(
+            coll,
+            name='${{ matrix.file_name }}.app',
+            icon='logo.icns',
+            bundle_identifier=None,
+            info_plist={
+                'LSMinimumSystemVersion': '10.13',
+            },
+        )
+        EOF
+        
+        pyinstaller build.spec
 
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
@@ -96,8 +158,6 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         cd dist
-        plutil -replace LSMinimumSystemVersion -string "10.13" \
-          "${{ matrix.file_name }}.app/Contents/Info.plist"
         codesign --force --deep --sign - "${{ matrix.file_name }}.app"
         create-dmg \
           --volname "Dhmf Software Bypass A5-A6 Tool V1.0" \
