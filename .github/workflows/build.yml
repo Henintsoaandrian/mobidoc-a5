@@ -43,94 +43,46 @@ jobs:
       if: runner.os == 'macOS'
       run: brew install create-dmg
 
+    - name: List files for debugging
+      run: |
+        echo "=== Current directory ==="
+        pwd
+        echo "=== Listing all files ==="
+        ls -la
+        echo "=== Check if logo.png exists ==="
+        if [ -f "logo.png" ]; then echo "logo.png found"; else echo "logo.png NOT found"; fi
+        echo "=== Check if fond.png exists ==="
+        if [ -f "fond.png" ]; then echo "fond.png found"; else echo "fond.png NOT found"; fi
+        echo "=== Check if payload.sql exists ==="
+        if [ -f "payload.sql" ]; then echo "payload.sql found"; else echo "payload.sql NOT found"; fi
+      shell: bash
+
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       env:
         MACOSX_DEPLOYMENT_TARGET: "10.13"
       run: |
-        # Créer un fichier spec personnalisé
-        cat > build.spec << EOF
-        # -*- mode: python ; coding: utf-8 -*-
-        from PyInstaller.utils.hooks import collect_all
-
-        datas = [
-            ('payload.sql', '.'),
-            ('logo.png', '.'),
-            ('fond.png', '.'),
-        ]
-        
-        binaries = []
-        hiddenimports = ['pymobiledevice3', 'requests', 'certifi']
-        
-        a = Analysis(
-            ['main.py'],
-            pathex=[],
-            binaries=binaries,
-            datas=datas,
-            hiddenimports=hiddenimports,
-            hookspath=[],
-            hooksconfig={},
-            runtime_hooks=[],
-            excludes=[],
-            noarchive=False,
-        )
-        
-        pyz = PYZ(a.pure)
-        
-        exe = EXE(
-            pyz,
-            a.scripts,
-            a.binaries,
-            a.datas,
-            [],
-            name='${{ matrix.file_name }}',
-            debug=False,
-            bootloader_ignore_signals=False,
-            strip=False,
-            upx=True,
-            upx_exclude=[],
-            runtime_tmpdir=None,
-            console=False,
-            disable_windowed_traceback=False,
-            argv_emulation=False,
-            target_arch=None,
-            codesign_identity=None,
-            entitlements_file=None,
-            icon='logo.icns',
-        )
-        
-        coll = COLLECT(
-            exe,
-            a.binaries,
-            a.datas,
-            strip=False,
-            upx=True,
-            upx_exclude=[],
-            name='${{ matrix.file_name }}',
-        )
-        
-        app = BUNDLE(
-            coll,
-            name='${{ matrix.file_name }}.app',
-            icon='logo.icns',
-            bundle_identifier=None,
-            info_plist={
-                'LSMinimumSystemVersion': '10.13',
-            },
-        )
-        EOF
-        
-        pyinstaller build.spec
+        pyinstaller --noconfirm --onedir \
+          --name "${{ matrix.file_name }}" \
+          --icon "$(pwd)/logo.icns" \
+          --add-data "$(pwd)/payload.sql:." \
+          --add-data "$(pwd)/logo.png:." \
+          --add-data "$(pwd)/fond.png:." \
+          --collect-all pymobiledevice3 \
+          --hidden-import "pymobiledevice3" \
+          --hidden-import "requests" \
+          --hidden-import "certifi" \
+          main.py
 
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
       run: |
         pyinstaller --noconfirm --onefile --windowed `
           --name "${{ matrix.file_name }}" `
-          --icon "logo.ico" `
-          --add-data "payload.sql;." `
-          --add-data "logo.png;." `
-          --add-data "fond.png;." `
+          --icon "$(pwd)\logo.ico" `
+          --add-data "$(pwd)\payload.sql;." `
+          --add-data "$(pwd)\logo.png;." `
+          --add-data "$(pwd)\fond.png;." `
           --collect-all pymobiledevice3 `
           --hidden-import "pymobiledevice3" `
           --hidden-import "requests" `
@@ -145,9 +97,9 @@ jobs:
       run: |
         pyinstaller --noconfirm --onefile --windowed \
           --name "${{ matrix.file_name }}" \
-          --add-data "payload.sql:." \
-          --add-data "logo.png:." \
-          --add-data "fond.png:." \
+          --add-data "$(pwd)/payload.sql:." \
+          --add-data "$(pwd)/logo.png:." \
+          --add-data "$(pwd)/fond.png:." \
           --collect-all pymobiledevice3 \
           --hidden-import "pymobiledevice3" \
           --hidden-import "requests" \
@@ -158,6 +110,8 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         cd dist
+        plutil -replace LSMinimumSystemVersion -string "10.13" \
+          "${{ matrix.file_name }}.app/Contents/Info.plist"
         codesign --force --deep --sign - "${{ matrix.file_name }}.app"
         create-dmg \
           --volname "Dhmf Software Bypass A5-A6 Tool V1.0" \
