@@ -1,0 +1,5 @@
+pymobiledevice3>=9.10.0,<10.0
+PyQt5==5.15.9
+requests>=2.31.0
+certifi>=2024.2.2
+pywin32==306 ; sys_platform == 'win32'
