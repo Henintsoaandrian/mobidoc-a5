@@ -10,6 +10,7 @@ import urllib.request
 import urllib.parse
 import threading
 import platform
+import importlib.metadata
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget,
@@ -19,9 +20,43 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
 from PyQt5.QtGui import QPixmap, QIcon, QPainter, QColor, QFont, QPainterPath
 
-from pymobiledevice3.lockdown import create_using_usbmux
-from pymobiledevice3.services.afc import AfcService
-from pymobiledevice3.services.diagnostics import DiagnosticsService
+# ----------------------------------------------------------------------
+# Vérification et import sécurisé de pymobiledevice3
+# ----------------------------------------------------------------------
+try:
+    from pymobiledevice3.lockdown import create_using_usbmux
+    from pymobiledevice3.services.afc import AfcService
+    from pymobiledevice3.services.diagnostics import DiagnosticsService
+except Exception as import_error:
+    # Capturer l'erreur et afficher un message explicite avant de quitter
+    app = QApplication(sys.argv)  # nécessaire pour afficher une boîte de dialogue
+    msg = QMessageBox()
+    msg.setWindowTitle("Erreur d'importation")
+    msg.setIcon(QMessageBox.Critical)
+    msg.setText(
+        "Impossible d'importer pymobiledevice3.\n\n"
+        "Cause probable : incompatibilité entre les versions de construct et construct-typed.\n\n"
+        "Solution :\n"
+        "pip install construct==2.10.69 construct-typed==0.5.2 pymobiledevice3==4.1.8\n\n"
+        f"Erreur détaillée :\n{import_error}"
+    )
+    msg.exec_()
+    sys.exit(1)
+
+# ----------------------------------------------------------------------
+# Vérification des versions recommandées (avertissement seulement)
+# ----------------------------------------------------------------------
+def check_versions():
+    try:
+        c_ver = importlib.metadata.version('construct')
+        ct_ver = importlib.metadata.version('construct-typed')
+        if c_ver != '2.10.69' or ct_ver != '0.5.2':
+            print(f"⚠️  Versions détectées : construct={c_ver}, construct-typed={ct_ver}")
+            print("⚠️  Versions recommandées : construct==2.10.69, construct-typed==0.5.2")
+    except Exception:
+        pass
+
+check_versions()
 
 # ========================== CONSTANTS ==========================
 BACKEND_URL        = 'http://api.mobidocserver.com/A5/server.php'
