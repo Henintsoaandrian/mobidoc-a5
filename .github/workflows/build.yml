@@ -17,27 +17,23 @@ jobs:
         include:
           - os: windows-latest
             arch: x64
-            ext: .exe
-            separator: ";"
-            name_suffix: Windows
+            sep: ";"
+            suffix: Windows
             icon_flag: "--icon logo.ico"
           - os: macos-latest
             arch: arm64
-            ext: ""
-            separator: ":"
-            name_suffix: macOS_ARM
+            sep: ":"
+            suffix: macOS_ARM
             icon_flag: "--icon logo.icns"
           - os: macos-13
             arch: x64
-            ext: ""
-            separator: ":"
-            name_suffix: macOS_Intel
+            sep: ":"
+            suffix: macOS_Intel
             icon_flag: "--icon logo.icns"
           - os: ubuntu-latest
             arch: x64
-            ext: ""
-            separator: ":"
-            name_suffix: Linux
+            sep: ":"
+            suffix: Linux
             icon_flag: ""
 
     steps:
@@ -49,7 +45,7 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install dependencies
+    - name: Install dependencies (all)
       run: |
         python -m pip install --upgrade pip
         pip install PyQt5 pymobiledevice3 pyinstaller requests certifi
@@ -58,15 +54,19 @@ jobs:
       if: runner.os == 'Windows'
       run: pip install pywin32
 
+    - name: Install Linux libusb (Ubuntu)
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev
+
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
       run: |
         pyinstaller --noconfirm --onefile --windowed `
-          --name "iHPro_Activator_${{ matrix.name_suffix }}" `
+          --name "iHPro_Activator_${{ matrix.suffix }}" `
           ${{ matrix.icon_flag }} `
-          --add-data "payload.sql${{ matrix.separator }}." `
-          --add-data "logo.png${{ matrix.separator }}." `
-          --add-data "fond.png${{ matrix.separator }}." `
+          --add-data "payload.sql${{ matrix.sep }}." `
+          --add-data "logo.png${{ matrix.sep }}." `
+          --add-data "fond.png${{ matrix.sep }}." `
           --collect-all pymobiledevice3 `
           --hidden-import "pymobiledevice3" `
           --hidden-import "requests" `
@@ -80,11 +80,11 @@ jobs:
       if: runner.os != 'Windows'
       run: |
         pyinstaller --noconfirm --onefile --windowed \
-          --name "iHPro_Activator_${{ matrix.name_suffix }}" \
+          --name "iHPro_Activator_${{ matrix.suffix }}" \
           ${{ matrix.icon_flag }} \
-          --add-data "payload.sql${{ matrix.separator }}." \
-          --add-data "logo.png${{ matrix.separator }}." \
-          --add-data "fond.png${{ matrix.separator }}." \
+          --add-data "payload.sql${{ matrix.sep }}." \
+          --add-data "logo.png${{ matrix.sep }}." \
+          --add-data "fond.png${{ matrix.sep }}." \
           --collect-all pymobiledevice3 \
           --hidden-import "pymobiledevice3" \
           --hidden-import "requests" \
@@ -96,26 +96,27 @@ jobs:
       run: |
         brew install create-dmg
         cd dist
-        codesign --force --deep --sign - "iHPro_Activator_${{ matrix.name_suffix }}.app"
+        # Signature ad-hoc (facultative)
+        codesign --force --deep --sign - "iHPro_Activator_${{ matrix.suffix }}.app"
         create-dmg \
           --volname "iHPro Activator" \
           --window-pos 200 120 \
           --window-size 600 300 \
           --icon-size 100 \
           --text-size 12 \
-          --hide-extension "iHPro_Activator_${{ matrix.name_suffix }}.app" \
+          --hide-extension "iHPro_Activator_${{ matrix.suffix }}.app" \
           --app-drop-link 450 140 \
-          --icon "iHPro_Activator_${{ matrix.name_suffix }}.app" 150 140 \
-          "iHPro_Activator_${{ matrix.name_suffix }}.dmg" \
-          "iHPro_Activator_${{ matrix.name_suffix }}.app"
+          --icon "iHPro_Activator_${{ matrix.suffix }}.app" 150 140 \
+          "iHPro_Activator_${{ matrix.suffix }}.dmg" \
+          "iHPro_Activator_${{ matrix.suffix }}.app"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: iHPro_Activator_${{ matrix.name_suffix }}
+        name: iHPro_Activator_${{ matrix.suffix }}
         path: |
-          dist/iHPro_Activator_${{ matrix.name_suffix }}.exe
-          dist/iHPro_Activator_${{ matrix.name_suffix }}.app
-          dist/iHPro_Activator_${{ matrix.name_suffix }}.dmg
-          dist/iHPro_Activator_${{ matrix.name_suffix }}
+          dist/iHPro_Activator_${{ matrix.suffix }}.exe
+          dist/iHPro_Activator_${{ matrix.suffix }}.app
+          dist/iHPro_Activator_${{ matrix.suffix }}.dmg
+          dist/iHPro_Activator_${{ matrix.suffix }}
         if-no-files-found: warn
