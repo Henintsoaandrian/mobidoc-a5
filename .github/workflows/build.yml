@@ -3,12 +3,12 @@ name: Build iHPro Activator
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*'               # Déclenché quand tu pousses un tag comme v1.1.0
+  workflow_dispatch:       # Permet de lancer manuellement depuis l'interface GitHub
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
+    name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -17,42 +17,112 @@ jobs:
             python-version: '3.10'
             executable: iHPro_Activator.exe
             sep: ';'
+            icon: logo.ico
           - os: macos-latest
             python-version: '3.10'
             executable: iHPro_Activator
             sep: ':'
+            icon: logo.icns
           - os: ubuntu-latest
             python-version: '3.10'
             executable: iHPro_Activator
             sep: ':'
+            icon: ''          # pas d'icône sous Linux
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      # ----- Dépendances système (Linux) -----
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libusb-1.0-0-dev libssl-dev
+
+      # ----- Dépendances Python -----
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller pymobiledevice3 PyQt5 certifi urllib3
+          pip install pyinstaller
+          pip install pymobiledevice3
+          pip install PyQt5
+          pip install certifi urllib3
 
-      - name: Build
+      # ----- Compilation Windows -----
+      - name: Build with PyInstaller (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pyinstaller --onefile --windowed `
+            --name ${{ matrix.executable }} `
+            --add-data "payload.sql${{ matrix.sep }}." `
+            --add-data "logo.png${{ matrix.sep }}." `
+            --add-data "fond.png${{ matrix.sep }}." `
+            --icon ${{ matrix.icon }} `
+            --collect-all pymobiledevice3 `
+            --hidden-import pymobiledevice3.services.afc `
+            --hidden-import pymobiledevice3.services.diagnostics `
+            --hidden-import pymobiledevice3.lockdown `
+            main.py
+
+      # ----- Compilation macOS et Linux -----
+      - name: Build with PyInstaller (macOS & Linux)
+        if: matrix.os != 'windows-latest'
         run: |
           pyinstaller --onefile --windowed \
             --name ${{ matrix.executable }} \
             --add-data "payload.sql${{ matrix.sep }}." \
             --add-data "logo.png${{ matrix.sep }}." \
             --add-data "fond.png${{ matrix.sep }}." \
+            ${{ matrix.icon && format('--icon {0}', matrix.icon) || '' }} \
             --collect-all pymobiledevice3 \
             --hidden-import pymobiledevice3.services.afc \
             --hidden-import pymobiledevice3.services.diagnostics \
+            --hidden-import pymobiledevice3.lockdown \
             main.py
 
-      - name: Upload artifact
+      # ----- Vérification des fichiers générés -----
+      - name: List build output
+        run: |
+          ls -la dist/
+          ls -la build/ || true
+
+      # ----- Upload des artefacts (pour les releases) -----
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.executable }}-${{ matrix.os }}
           path: dist/${{ matrix.executable }}
+          if-no-files-found: error
+
+  # ----- Création de la Release -----
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded files
+        run: |
+          ls -la artifacts/
+          find artifacts/ -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
